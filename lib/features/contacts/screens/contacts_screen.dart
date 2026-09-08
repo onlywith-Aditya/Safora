@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/custom_input.dart';
 import '../../../routes/app_routes.dart';
 import '../../auth/services/auth_service.dart';
 
@@ -40,6 +41,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   void _showAddEditContactDialog({int? index}) {
     final isEdit = index != null;
+    final formKey = GlobalKey<FormState>();
     final nameCtrl = TextEditingController(text: isEdit ? _contacts[index]['name'] : '');
     final phoneCtrl = TextEditingController(text: isEdit ? _contacts[index]['phone'] : '');
     final relationCtrl = TextEditingController(text: isEdit ? _contacts[index]['relation'] : '');
@@ -61,85 +63,122 @@ class _ContactsScreenState extends State<ContactsScreen> {
               topRight: Radius.circular(28),
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isEdit ? 'Edit Contact' : 'Add Emergency Contact',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isEdit ? 'Edit Contact' : 'Add Emergency Contact',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Name',
-                  filled: true,
-                  fillColor: AppColors.inputBg,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                const SizedBox(height: 16),
+                CustomInputField(
+                  label: 'Name',
+                  hintText: 'e.g. Rajesh Sharma',
+                  controller: nameCtrl,
+                  isRequired: true,
+                  prefixIcon: Icons.person_outline_rounded,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Please enter contact name'
+                      : null,
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  filled: true,
-                  fillColor: AppColors.inputBg,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                const SizedBox(height: 12),
+                CustomInputField(
+                  label: 'Phone Number',
+                  hintText: 'e.g. +91 98765 43210',
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  isRequired: true,
+                  prefixIcon: Icons.phone_outlined,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Please enter phone number';
+                    }
+                    if (v.trim().length < 8) {
+                      return 'Enter a valid phone number';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: relationCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Relation (e.g. Father, Sister)',
-                  filled: true,
-                  fillColor: AppColors.inputBg,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                const SizedBox(height: 12),
+                CustomInputField(
+                  label: 'Relation',
+                  hintText: 'e.g. Father, Sister, Friend',
+                  controller: relationCtrl,
+                  isRequired: true,
+                  prefixIcon: Icons.people_outline_rounded,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Please enter relation'
+                      : null,
                 ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (nameCtrl.text.trim().isNotEmpty && phoneCtrl.text.trim().isNotEmpty) {
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (!formKey.currentState!.validate()) {
+                        return;
+                      }
+
+                      final name = nameCtrl.text.trim();
+                      final phone = phoneCtrl.text.trim();
+                      final relation = relationCtrl.text.trim();
+
+                      if (name.isEmpty || phone.isEmpty || relation.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('All fields are required'),
+                            backgroundColor: AppColors.primary,
+                          ),
+                        );
+                        return;
+                      }
+
                       setState(() {
                         if (isEdit) {
                           _contacts[index] = {
-                            'name': nameCtrl.text.trim(),
-                            'phone': phoneCtrl.text.trim(),
-                            'relation': relationCtrl.text.trim(),
+                            'name': name,
+                            'phone': phone,
+                            'relation': relation,
                           };
                         } else {
                           _contacts.add({
-                            'name': nameCtrl.text.trim(),
-                            'phone': phoneCtrl.text.trim(),
-                            'relation': relationCtrl.text.trim(),
+                            'name': name,
+                            'phone': phone,
+                            'relation': relation,
                           });
                         }
                       });
+
+                      // Persist directly to Cloud Firestore
+                      AuthService().updateContacts(_contacts);
+
                       Navigator.pop(ctx);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-                  ),
-                  child: Text(
-                    isEdit ? 'Save Changes' : 'Add Contact',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    child: Text(
+                      isEdit ? 'Save Changes' : 'Add Contact',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -150,11 +189,13 @@ class _ContactsScreenState extends State<ContactsScreen> {
     setState(() {
       _contacts.removeAt(index);
     });
+    // Persist removal to Cloud Firestore
+    AuthService().updateContacts(_contacts);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Contact removed'),
+      const SnackBar(
+        content: Text('Contact removed'),
         backgroundColor: AppColors.primary,
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
       ),
     );
   }

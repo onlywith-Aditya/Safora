@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../routes/app_routes.dart';
+import '../services/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -39,10 +40,15 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Timer for navigation (transitions to Login after 3 seconds)
-    _timer = Timer(const Duration(seconds: 3), () {
+    // Check auth session and navigate after 2.5 seconds
+    _timer = Timer(const Duration(milliseconds: 2500), () async {
+      final isLoggedIn = await AuthService().tryAutoLogin();
       if (mounted) {
-        Navigator.pushReplacementNamed(context, AppRoutes.login);
+        if (isLoggedIn) {
+          Navigator.pushReplacementNamed(context, AppRoutes.home);
+        } else {
+          Navigator.pushReplacementNamed(context, AppRoutes.roleSelection);
+        }
       }
     });
   }

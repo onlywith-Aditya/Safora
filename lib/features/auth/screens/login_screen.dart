@@ -42,85 +42,16 @@ class _LoginScreenState extends State<LoginScreen> {
     if (result.isSuccess) {
       Navigator.pushReplacementNamed(context, AppRoutes.home);
     } else {
-      _showNoAccountError(result.errorMessage ?? 'Account not exist create account');
+      _showError(result.errorMessage ?? 'Login failed');
     }
   }
 
-  void _showNoAccountError([String message = 'Account not exist create account']) {
+  void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        elevation: 6,
-        backgroundColor: Colors.white,
+        content: Text(message),
+        backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: AppColors.primary, width: 1.8),
-        ),
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        duration: const Duration(seconds: 4),
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                color: AppColors.lightPinkCard,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.person_off_outlined,
-                color: AppColors.primary,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Authentication Error',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    message,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                Navigator.pushNamed(context, AppRoutes.register);
-              },
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                backgroundColor: AppColors.lightPinkCard,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Register',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -134,9 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Top Pink Header Banner with Centered App Badge
             _buildTopBanner(size),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Form(
@@ -146,25 +75,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const Text(
                       'Welcome Back',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Login to continue',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: AppColors.textSecondary,
-                      ),
+                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 24),
-
-                    // Email Input
                     CustomInputField(
                       label: 'Email',
                       hintText: 'Enter your email',
@@ -172,18 +90,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: Icons.mail_outline_rounded,
                       keyboardType: TextInputType.emailAddress,
                       validator: (val) {
-                        if (val == null || val.trim().isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!val.contains('@')) {
-                          return 'Enter a valid email address';
-                        }
+                        if (val == null || val.trim().isEmpty) return 'Please enter your email';
+                        if (!val.contains('@')) return 'Enter a valid email';
                         return null;
                       },
                     ),
                     const SizedBox(height: 18),
-
-                    // Password Input
                     CustomInputField(
                       label: 'Password',
                       hintText: 'Enter your password',
@@ -192,117 +104,39 @@ class _LoginScreenState extends State<LoginScreen> {
                       obscureText: _obscurePassword,
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
+                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                           color: AppColors.textMuted,
                           size: 20,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
                       validator: (val) {
-                        if (val == null || val.isEmpty) {
-                          return 'Please enter your password';
-                        }
+                        if (val == null || val.isEmpty) return 'Please enter your password';
                         return null;
                       },
                     ),
-
-                    // Forgot Password
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                        ),
-                        child: const Text(
-                          'Forgot Password?',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Login Button
+                    const SizedBox(height: 24),
                     CustomButton(
                       text: 'Login',
                       isLoading: _isLoading,
                       onPressed: _handleLogin,
                     ),
-
                     const SizedBox(height: 20),
-
-                    // OR Divider
                     Row(
                       children: const [
                         Expanded(child: Divider(color: Color(0xFFE2E2E2))),
                         Padding(
                           padding: EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            'OR',
-                            style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          child: Text('OR', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
                         ),
                         Expanded(child: Divider(color: Color(0xFFE2E2E2))),
                       ],
                     ),
-
                     const SizedBox(height: 20),
-
-                    // Create New Account Button
                     CustomButton(
                       text: 'Create New Account',
                       isOutlined: true,
-                      onPressed: () {
-                        Navigator.pushNamed(context, AppRoutes.register);
-                      },
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // Terms and Privacy Policy Footer
-                    Center(
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: const TextSpan(
-                          text: 'By continuing, you agree to our ',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textMuted,
-                            height: 1.4,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: 'Terms',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            TextSpan(text: ' & '),
-                            TextSpan(
-                              text: 'Privacy\nPolicy',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
                     ),
                     const SizedBox(height: 20),
                   ],
@@ -315,7 +149,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Top Pink Curved Banner with Center Safora Logo
   Widget _buildTopBanner(Size size) {
     return Container(
       width: double.infinity,
@@ -334,13 +167,7 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 20,
-                offset: Offset(0, 6),
-              ),
-            ],
+            boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 20, offset: Offset(0, 6))],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(28),

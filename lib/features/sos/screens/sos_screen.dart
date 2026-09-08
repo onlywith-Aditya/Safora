@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../routes/app_routes.dart';
+import '../../auth/services/auth_service.dart';
 import '../../fake_call/screens/fake_call_screen.dart';
 
 class SosScreen extends StatefulWidget {
@@ -34,6 +35,12 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
           _isDispatched = true;
         });
         timer.cancel();
+
+        // Send and record SOS Alert in Cloud Firestore
+        AuthService().sendSosAlert(
+          location: 'Live GPS Location',
+          notes: 'Emergency SOS alert dispatched from mobile safety app',
+        );
       }
     });
   }

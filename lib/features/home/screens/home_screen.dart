@@ -124,7 +124,8 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     final user = AuthService().currentUser;
-    final userName = user != null ? (user['name']?.toString().split(' ').first ?? 'Priya') : 'Priya';
+    final rawName = user?['fullName'] ?? user?['name'] ?? 'Priya';
+    final userName = rawName.toString().trim().split(' ').first;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -134,25 +135,26 @@ class _HomeScreenState extends State<HomeScreen>
             // Top Pink Header + SOS Area
             _buildHeaderAndSosSection(userName),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Main Content Area
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text(
+                    'Quick Safety Tools',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
                   // Quick Actions (Fake Call, Safe Route, Voice Alert)
                   _buildQuickActions(),
-
-                  const SizedBox(height: 20),
-
-                  // Area Risk Level Card
-                  _buildRiskLevelCard(),
-
-                  const SizedBox(height: 16),
-
-                  // Current Location Card
-                  _buildLocationCard(),
 
                   const SizedBox(height: 30),
                 ],
@@ -385,162 +387,6 @@ class _HomeScreenState extends State<HomeScreen>
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Area Risk Level Card
-  Widget _buildRiskLevelCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'Area Risk Level',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              Icon(
-                Icons.verified_user_outlined,
-                color: AppColors.textMuted,
-                size: 20,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              // Circular Risk Score Meter
-              SizedBox(
-                width: 60,
-                height: 60,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value: 0.18,
-                      strokeWidth: 6,
-                      backgroundColor: const Color(0xFFE8F5E9),
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.safeGreen),
-                    ),
-                    const Text(
-                      '18',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 18),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Safe Area',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.safeGreen,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Updated 3 min ago',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Current Location Card
-  Widget _buildLocationCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.lightPinkCard,
-        borderRadius: BorderRadius.circular(18),
-        border: const Border(
-          left: BorderSide(color: AppColors.primary, width: 4),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.location_on_outlined,
-            color: AppColors.textPrimary,
-            size: 22,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Andheri West, Mumbai',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Updated just now',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.safeRoute);
-            },
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(40, 30),
-            ),
-            child: const Text(
-              'View',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
             ),
           ),
         ],

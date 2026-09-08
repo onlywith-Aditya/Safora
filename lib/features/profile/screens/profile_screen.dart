@@ -1,22 +1,268 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/custom_button.dart';
+import '../../../core/widgets/custom_input.dart';
 import '../../../routes/app_routes.dart';
 import '../../auth/services/auth_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final bool isStandalone;
   const ProfileScreen({super.key, this.isStandalone = false});
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final List<String> _bloodGroups = [
+    'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'
+  ];
+
+  void _showEditProfileModal() {
+    final user = AuthService().currentUser;
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController(text: user?['name'] ?? 'Priya Sharma');
+    final phoneCtrl = TextEditingController(text: user?['phone'] ?? '+91 98765 43210');
+    final addressCtrl = TextEditingController(
+      text: user?['address'] ?? '',
+    );
+    String? selectedBloodGroup = user?['bloodGroup'] ?? 'O+';
+    if (!_bloodGroups.contains(selectedBloodGroup)) {
+      selectedBloodGroup = 'O+';
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (sbContext, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(28),
+                topRight: Radius.circular(28),
+              ),
+            ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Edit Profile Details',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    CustomInputField(
+                      label: 'Full Name',
+                      hintText: 'Enter full name',
+                      controller: nameCtrl,
+                      prefixIcon: Icons.person_outline_rounded,
+                      isRequired: true,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please enter your name'
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+
+                    CustomInputField(
+                      label: 'Phone Number',
+                      hintText: 'Enter phone number',
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      prefixIcon: Icons.phone_outlined,
+                      isRequired: true,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Please enter phone number';
+                        }
+                        if (v.trim().length < 8) {
+                          return 'Enter a valid phone number';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    RichText(
+                      text: const TextSpan(
+                        text: 'Blood Group',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: ' *',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedBloodGroup,
+                      dropdownColor: Colors.white,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please select blood group'
+                          : null,
+                      decoration: InputDecoration(
+                        hintText: 'Select Blood Group',
+                        filled: true,
+                        fillColor: AppColors.inputBg,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: AppColors.inputBorder,
+                            width: 1.2,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: AppColors.inputFocusedBorder,
+                            width: 1.8,
+                          ),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: AppColors.dangerRed,
+                            width: 1.2,
+                          ),
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: AppColors.dangerRed,
+                            width: 1.8,
+                          ),
+                        ),
+                      ),
+                      items: _bloodGroups.map((group) {
+                        return DropdownMenuItem(
+                          value: group,
+                          child: Text(group, style: const TextStyle(fontSize: 14)),
+                        );
+                      }).toList(),
+                      onChanged: (v) => setModalState(() => selectedBloodGroup = v),
+                    ),
+                    const SizedBox(height: 12),
+
+                    CustomInputField(
+                      label: 'Address',
+                      hintText: 'Enter your address',
+                      controller: addressCtrl,
+                      maxLines: 2,
+                      isRequired: true,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please enter your address'
+                          : null,
+                    ),
+                    const SizedBox(height: 22),
+
+                    CustomButton(
+                      text: 'Save Changes',
+                      onPressed: () async {
+                        if (!formKey.currentState!.validate()) {
+                          return;
+                        }
+
+                        final name = nameCtrl.text.trim();
+                        final phone = phoneCtrl.text.trim();
+                        final address = addressCtrl.text.trim();
+
+                        if (name.isEmpty ||
+                            phone.isEmpty ||
+                            address.isEmpty ||
+                            selectedBloodGroup == null) {
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(
+                                content: Text('All profile fields are required'),
+                                backgroundColor: AppColors.primary,
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        // Persist to Cloud Firestore and local state
+                        await AuthService().updateUserProfile(
+                          name: name,
+                          phone: phone,
+                          bloodGroup: selectedBloodGroup!,
+                          address: address,
+                        );
+
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                        }
+                        if (mounted) {
+                          setState(() {});
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Profile updated successfully'),
+                              backgroundColor: AppColors.safeGreen,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final user = AuthService().currentUser;
-    final name = user?['name'] ?? 'Priya Sharma';
-    final email = user?['email'] ?? 'priya.sharma@email.com';
-    final phone = user?['phone'] ?? '+91 98765 43210';
-    final bloodGroup = user?['bloodGroup'] ?? 'O+';
-    final address = user?['address'] ?? '402, Sunshine Apartments, Andheri West, Mumbai';
+    final name = (user?['fullName'] ?? user?['name'] ?? 'Priya Sharma').toString();
+    final email = (user?['email'] ?? 'priya.sharma@email.com').toString();
+    final phone = (user?['phone'] ?? '+91 98765 43210').toString();
+    final bloodGroup = (user?['bloodGroup'] ?? 'O+').toString();
+    final address = (user?['address'] ?? '').toString();
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+
+    final contactsRaw = user?['contacts'] ?? user?['emergencyContacts'];
+    final List<Map<String, dynamic>> contactList = [];
+    if (contactsRaw is List) {
+      for (var c in contactsRaw) {
+        if (c is Map) {
+          contactList.add({
+            'name': c['name']?.toString() ?? '',
+            'phone': c['phone']?.toString() ?? '',
+            'relation': c['relation']?.toString() ?? 'Contact',
+          });
+        }
+      }
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -69,7 +315,7 @@ class ProfileScreen extends StatelessWidget {
                   _buildInfoCard(
                     icon: Icons.location_on_outlined,
                     label: 'Address',
-                    value: address.isEmpty ? '402, Sunshine Apartments, Andheri West, Mumbai' : address,
+                    value: address.isEmpty ? 'Not Provided' : address,
                   ),
 
                   const SizedBox(height: 24),
@@ -88,7 +334,9 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, AppRoutes.contacts);
+                          Navigator.pushNamed(context, AppRoutes.contacts).then((_) {
+                            if (mounted) setState(() {});
+                          });
                         },
                         child: const Text(
                           'View All',
@@ -103,10 +351,23 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
 
-                  // Contact Previews
-                  _buildContactPreviewCard('Rajesh Sharma', 'Father', '98xxxxxx10', 'R'),
-                  const SizedBox(height: 10),
-                  _buildContactPreviewCard('Anita Verma', 'Sister', '91xxxxxx44', 'A'),
+                  // Dynamic Contact Previews from Firestore
+                  if (contactList.isNotEmpty)
+                    ...contactList.take(2).map((c) {
+                      final cName = c['name'] ?? 'Contact';
+                      final cRel = c['relation'] ?? 'Relation';
+                      final cPhone = c['phone'] ?? '';
+                      final cInitial = cName.isNotEmpty ? cName[0].toUpperCase() : 'C';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildContactPreviewCard(cName, cRel, cPhone, cInitial),
+                      );
+                    })
+                  else ...[
+                    _buildContactPreviewCard('Rajesh Sharma', 'Father', '+91 98765 43210', 'R'),
+                    const SizedBox(height: 10),
+                    _buildContactPreviewCard('Anita Verma', 'Sister', '+91 91234 56744', 'A'),
+                  ],
 
                   const SizedBox(height: 24),
 
@@ -114,14 +375,7 @@ class ProfileScreen extends StatelessWidget {
                   CustomButton(
                     text: 'Edit Profile',
                     isOutlined: true,
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Edit Profile opened'),
-                          backgroundColor: AppColors.primary,
-                        ),
-                      );
-                    },
+                    onPressed: _showEditProfileModal,
                   ),
                   const SizedBox(height: 12),
                   CustomButton(
@@ -172,7 +426,7 @@ class ProfileScreen extends StatelessWidget {
               child: IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                 onPressed: () {
-                  if (isStandalone) {
+                  if (widget.isStandalone) {
                     Navigator.pop(context);
                   } else {
                     Navigator.pushReplacementNamed(context, AppRoutes.home);

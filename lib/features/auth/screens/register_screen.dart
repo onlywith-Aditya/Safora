@@ -13,20 +13,22 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  int _currentStep = 1; // 1: Personal Info, 2: Contacts, 3: Done
+  int _currentStep = 1;
 
-  // Step 1 Controllers
   final _step1FormKey = GlobalKey<FormState>();
+  final _step2FormKey = GlobalKey<FormState>();
+  
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _ageController = TextEditingController();
   final _addressController = TextEditingController();
+  
   String? _selectedBloodGroup;
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
-  // Step 2 Controllers & Dynamic Contacts
   final List<Map<String, TextEditingController>> _contacts = [
     {
       'name': TextEditingController(),
@@ -35,11 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   ];
 
-  bool _isLoading = false;
-
-  final List<String> _bloodGroups = [
-    'A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'
-  ];
+  final List<String> _bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
   @override
   void dispose() {
@@ -79,15 +77,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleFinalSubmit() async {
-    // Validate contacts
     for (int i = 0; i < _contacts.length; i++) {
-      if (_contacts[i]['name']!.text.trim().isEmpty ||
-          _contacts[i]['phone']!.text.trim().isEmpty) {
+      final name = _contacts[i]['name']!.text.trim();
+      final phone = _contacts[i]['phone']!.text.trim();
+      final relation = _contacts[i]['relation']!.text.trim();
+      if (name.isEmpty || phone.isEmpty || relation.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please fill contact #${i + 1} name and phone number'),
-            backgroundColor: AppColors.primary,
-          ),
+          SnackBar(content: Text('Please fill all fields for Contact #${i + 1}')),
         );
         return;
       }
@@ -101,7 +97,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'phone': _phoneController.text.trim(),
       'password': _passwordController.text,
       'age': _ageController.text.trim(),
-      'bloodGroup': _selectedBloodGroup ?? 'Not Specified',
+      'bloodGroup': _selectedBloodGroup ?? 'O+',
       'address': _addressController.text.trim(),
       'contacts': _contacts.map((c) => {
         'name': c['name']!.text.trim(),
@@ -116,15 +112,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = false);
 
     if (result.isSuccess) {
-      setState(() {
-        _currentStep = 3; // Move to Done screen
-      });
+      setState(() => _currentStep = 3);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.errorMessage ?? 'Registration error'),
-          backgroundColor: AppColors.primary,
-        ),
+        SnackBar(content: Text(result.errorMessage ?? 'Registration failed')),
       );
     }
   }
@@ -133,43 +124,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60),
-        child: AppBar(
-          backgroundColor: AppColors.headerPink,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-            onPressed: () {
-              if (_currentStep == 2) {
-                setState(() => _currentStep = 1);
-              } else if (_currentStep == 1) {
-                Navigator.pop(context);
-              }
-            },
-          ),
-          title: const Text(
-            'Create Account',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-            ),
-          ),
-          centerTitle: false,
+      appBar: AppBar(
+        backgroundColor: AppColors.headerPink,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            if (_currentStep == 2) {
+              setState(() => _currentStep = 1);
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
+        title: const Text('Create Account', style: TextStyle(color: Colors.white, fontSize: 18)),
       ),
       body: Column(
         children: [
-          // Step 1 - 2 - 3 Stepper Header
-          _buildStepperHeader(),
-
-          const Divider(height: 1, color: Color(0xFFF0F0F0)),
-
+          _buildStepper(),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: _buildCurrentStepContent(),
+              padding: const EdgeInsets.all(20),
+              child: _currentStep == 1 ? _buildStep1() : _currentStep == 2 ? _buildStep2() : _buildStep3(),
             ),
           ),
         ],
@@ -177,154 +152,89 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  /// Stepper Visual Progress Indicator (1: Personal Info -> 2: Contacts -> 3: Done)
-  Widget _buildStepperHeader() {
+  Widget _buildStepper() {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       child: Row(
         children: [
-          _buildStepItem(1, 'Personal\nInfo'),
-          _buildStepLine(_currentStep >= 2),
-          _buildStepItem(2, 'Contacts\n'),
-          _buildStepLine(_currentStep >= 3),
-          _buildStepItem(3, 'Done\n'),
+          _stepCircle(1, 'Personal'),
+          _stepLine(_currentStep >= 2),
+          _stepCircle(2, 'Contacts'),
+          _stepLine(_currentStep >= 3),
+          _stepCircle(3, 'Done'),
         ],
       ),
     );
   }
 
-  Widget _buildStepItem(int stepNumber, String title) {
-    final bool isActive = _currentStep == stepNumber;
-    final bool isPassed = _currentStep > stepNumber;
-
+  Widget _stepCircle(int step, String label) {
+    final active = _currentStep >= step;
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 30,
+          height: 30,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: (isActive || isPassed) ? AppColors.primary : const Color(0xFFEDEDED),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: AppColors.primaryGlow,
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
+            color: active ? AppColors.primary : Color(0xFFEDEDED),
           ),
           child: Center(
-            child: isPassed
-                ? const Icon(Icons.check, size: 18, color: Colors.white)
-                : Text(
-                    '$stepNumber',
-                    style: TextStyle(
-                      color: isActive ? Colors.white : AppColors.textMuted,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
+            child: _currentStep > step
+                ? const Icon(Icons.check, size: 16, color: Colors.white)
+                : Text('$step', style: TextStyle(color: active ? Colors.white : AppColors.textMuted, fontWeight: FontWeight.bold)),
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-            color: isActive ? AppColors.primary : AppColors.textMuted,
-          ),
-        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 10, color: active ? AppColors.primary : AppColors.textMuted)),
       ],
     );
   }
 
-  Widget _buildStepLine(bool isPassed) {
+  Widget _stepLine(bool active) {
     return Expanded(
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 22, left: 8, right: 8),
-        height: 2,
-        color: isPassed ? AppColors.primary : const Color(0xFFE5E5E5),
-      ),
+      child: Container(height: 2, margin: const EdgeInsets.only(bottom: 18), color: active ? AppColors.primary : Color(0xFFE5E5E5)),
     );
   }
 
-  Widget _buildCurrentStepContent() {
-    switch (_currentStep) {
-      case 1:
-        return _buildStep1PersonalInfo();
-      case 2:
-        return _buildStep2Contacts();
-      case 3:
-        return _buildStep3Done();
-      default:
-        return const SizedBox();
-    }
-  }
-
-  /// -------------------------------------------------------------
-  /// STEP 1: Personal Details
-  /// -------------------------------------------------------------
-  Widget _buildStep1PersonalInfo() {
+  Widget _buildStep1() {
     return Form(
       key: _step1FormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Personal Details',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 16),
-
           CustomInputField(
             label: 'Full Name',
             hintText: 'e.g. Priya Sharma',
             controller: _nameController,
             prefixIcon: Icons.person_outline_rounded,
-            isRequired: true,
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter your name' : null,
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
           ),
           const SizedBox(height: 14),
-
           CustomInputField(
             label: 'Email',
             hintText: 'you@example.com',
             controller: _emailController,
             prefixIcon: Icons.mail_outline_rounded,
             keyboardType: TextInputType.emailAddress,
-            isRequired: true,
-            validator: (v) => (v == null || !v.contains('@')) ? 'Please enter a valid email' : null,
+            validator: (v) => (v == null || !v.contains('@')) ? 'Valid email required' : null,
           ),
           const SizedBox(height: 14),
-
           CustomInputField(
-            label: 'Phone Number',
+            label: 'Phone',
             hintText: '+91 98765 43210',
             controller: _phoneController,
             prefixIcon: Icons.phone_outlined,
             keyboardType: TextInputType.phone,
-            isRequired: true,
-            validator: (v) => (v == null || v.trim().length < 8) ? 'Enter a valid phone number' : null,
+            validator: (v) => (v == null || v.trim().length < 8) ? 'Valid phone required' : null,
           ),
           const SizedBox(height: 14),
-
           CustomInputField(
             label: 'Password',
             hintText: 'Min 6 characters',
             controller: _passwordController,
             prefixIcon: Icons.lock_outline_rounded,
             obscureText: _obscurePassword,
-            isRequired: true,
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -333,80 +243,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
-            validator: (v) => (v == null || v.length < 6) ? 'Password must be at least 6 characters' : null,
+            validator: (v) => (v == null || v.length < 6) ? 'Min 6 characters' : null,
           ),
           const SizedBox(height: 14),
-
-          // Age and Blood Group Row
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: CustomInputField(
                   label: 'Age',
-                  hintText: 'Optional',
+                  hintText: '24',
                   controller: _ageController,
                   keyboardType: TextInputType.number,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Blood Group',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedBloodGroup,
-                      dropdownColor: Colors.white,
-                      decoration: InputDecoration(
-                        hintText: 'Select',
-                        hintStyle: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.inputHint,
-                        ),
-                        filled: true,
-                        fillColor: AppColors.inputBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.2),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: AppColors.inputFocusedBorder, width: 1.8),
-                        ),
-                      ),
-                      items: _bloodGroups.map((group) {
-                        return DropdownMenuItem(
-                          value: group,
-                          child: Text(group, style: const TextStyle(fontSize: 14)),
-                        );
-                      }).toList(),
-                      onChanged: (v) => setState(() => _selectedBloodGroup = v),
-                    ),
-                  ],
+                child: DropdownButtonFormField<String>(
+                  initialValue: _selectedBloodGroup,
+                  decoration: InputDecoration(
+                    labelText: 'Blood Group',
+                    filled: true,
+                    fillColor: AppColors.inputBg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: _bloodGroups.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                  onChanged: (v) => setState(() => _selectedBloodGroup = v),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
-
           CustomInputField(
             label: 'Address',
-            hintText: 'Optional',
+            hintText: 'Your address',
             controller: _addressController,
             maxLines: 2,
           ),
           const SizedBox(height: 24),
-
           CustomButton(
             text: 'Next: Emergency Contacts',
             onPressed: () {
@@ -415,204 +288,125 @@ class _RegisterScreenState extends State<RegisterScreen> {
               }
             },
           ),
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  /// -------------------------------------------------------------
-  /// STEP 2: Emergency Contacts
-  /// -------------------------------------------------------------
-  Widget _buildStep2Contacts() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Emergency Contacts',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: AppColors.primary,
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // List of Contact Cards
-        ...List.generate(_contacts.length, (index) {
-          final c = _contacts[index];
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.lightPinkCard,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFFFD4E2), width: 1.2),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Contact #${index + 1}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    if (_contacts.length > 1)
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18, color: AppColors.primary),
-                        onPressed: () => _removeContact(index),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                CustomInputField(
-                  label: 'Name',
-                  hintText: 'Contact name',
-                  controller: c['name'],
-                  isRequired: true,
-                ),
-                const SizedBox(height: 10),
-
-                CustomInputField(
-                  label: 'Phone',
-                  hintText: 'Phone number',
-                  controller: c['phone'],
-                  keyboardType: TextInputType.phone,
-                  isRequired: true,
-                ),
-                const SizedBox(height: 10),
-
-                CustomInputField(
-                  label: 'Relation',
-                  hintText: 'e.g. Father, Mother, Friend',
-                  controller: c['relation'],
-                ),
-              ],
-            ),
-          );
-        }),
-
-        // Add More Button
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: _addContact,
-            icon: const Icon(Icons.add, size: 18, color: AppColors.primary),
-            label: const Text(
-              'Add More',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(
-                color: AppColors.primaryLight,
-                width: 1.5,
-                style: BorderStyle.solid,
-              ),
-              shape: RoundedRectangleBorder(
+  Widget _buildStep2() {
+    return Form(
+      key: _step2FormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...List.generate(_contacts.length, (index) {
+            final nameController = _contacts[index]['name']!;
+            final phoneController = _contacts[index]['phone']!;
+            final relationController = _contacts[index]['relation']!;
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.lightPinkCard,
                 borderRadius: BorderRadius.circular(16),
               ),
-              backgroundColor: Colors.white,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Contact #${index + 1}',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary),
+                      ),
+                      if (_contacts.length > 1)
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18, color: AppColors.primary),
+                          onPressed: () => _removeContact(index),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  CustomInputField(
+                    label: 'Name',
+                    hintText: 'Contact name',
+                    controller: nameController,
+                    prefixIcon: Icons.person_outline_rounded,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  CustomInputField(
+                    label: 'Phone',
+                    hintText: 'Phone number',
+                    controller: phoneController,
+                    prefixIcon: Icons.phone_outlined,
+                    keyboardType: TextInputType.phone,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  CustomInputField(
+                    label: 'Relation',
+                    hintText: 'e.g. Father, Mother, Friend',
+                    controller: relationController,
+                    prefixIcon: Icons.favorite_outline_rounded,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                ],
+              ),
+            );
+          }),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: _addContact,
+              icon: const Icon(Icons.add, size: 18, color: AppColors.primary),
+              label: const Text('Add More', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primary, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
           ),
-        ),
-
-        const SizedBox(height: 28),
-
-        // Bottom Actions: Back & Submit
-        Row(
-          children: [
-            Expanded(
-              child: CustomButton(
-                text: 'Back',
-                isOutlined: true,
-                onPressed: () => setState(() => _currentStep = 1),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: CustomButton(text: 'Back', isOutlined: true, onPressed: () => setState(() => _currentStep = 1)),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: CustomButton(
-                text: 'Submit',
-                isLoading: _isLoading,
-                onPressed: _handleFinalSubmit,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
-
-  /// -------------------------------------------------------------
-  /// STEP 3: Done / Completion
-  /// -------------------------------------------------------------
-  Widget _buildStep3Done() {
-    return Column(
-      children: [
-        const SizedBox(height: 30),
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryGlow,
-                blurRadius: 24,
-                offset: const Offset(0, 8),
+              const SizedBox(width: 14),
+              Expanded(
+                child: CustomButton(text: 'Submit', isLoading: _isLoading, onPressed: _handleFinalSubmit),
               ),
             ],
           ),
-          child: const Icon(
-            Icons.check_rounded,
-            color: Colors.white,
-            size: 54,
-          ),
-        ),
-        const SizedBox(height: 28),
-        const Text(
-          'Account Created!',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 10),
-        const Text(
-          'Your emergency safety network is ready.\nYou can now access live monitoring and emergency alerts.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textSecondary,
-            height: 1.5,
-          ),
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep3() {
+    return Column(
+      children: [
         const SizedBox(height: 40),
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+          child: const Icon(Icons.check, color: Colors.white, size: 50),
+        ),
+        const SizedBox(height: 20),
+        const Text('Account Created!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        const Text('Your safety network is ready.'),
+        const SizedBox(height: 30),
         CustomButton(
           text: 'Go to Dashboard',
-          onPressed: () {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              AppRoutes.home,
-              (route) => false,
-            );
-          },
+          onPressed: () => Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false),
         ),
       ],
     );

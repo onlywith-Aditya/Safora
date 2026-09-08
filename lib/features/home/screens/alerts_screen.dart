@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../routes/app_routes.dart';
+import '../../auth/services/auth_service.dart';
 
 class AlertsScreen extends StatelessWidget {
   final bool isStandalone;
@@ -8,7 +10,7 @@ class AlertsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final alerts = [
+    final defaultAlerts = [
       {
         'title': 'High Crowd Density Reported',
         'location': 'Near Andheri West Station',
@@ -67,79 +69,119 @@ class AlertsScreen extends StatelessWidget {
           centerTitle: false,
         ),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        itemCount: alerts.length,
-        itemBuilder: (context, index) {
-          final alert = alerts[index];
-          Color badgeColor = AppColors.primary;
-          Color iconColor = AppColors.primary;
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: AuthService().getAlertsStream(),
+        builder: (context, snapshot) {
+          final List<Map<String, dynamic>> displayAlerts = [];
 
-          if (alert['type'] == 'warning') {
-            badgeColor = const Color(0xFFFFF3E0);
-            iconColor = AppColors.warningOrange;
-          } else if (alert['type'] == 'success') {
-            badgeColor = const Color(0xFFE8F8EE);
-            iconColor = AppColors.safeGreen;
-          } else if (alert['type'] == 'sos') {
-            badgeColor = const Color(0xFFFFEBEE);
-            iconColor = AppColors.sosRed;
-          } else {
-            badgeColor = AppColors.lightPinkCard;
-            iconColor = AppColors.primary;
+          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+            for (var item in snapshot.data!) {
+              IconData icon = Icons.notifications_active_outlined;
+              final type = item['type'] ?? 'info';
+              if (type == 'sos') icon = Icons.emergency_share_outlined;
+              if (type == 'warning') icon = Icons.warning_amber_rounded;
+              if (type == 'success') icon = Icons.check_circle_outline_rounded;
+
+              String timeStr = 'Just now';
+              if (item['createdAt'] is Timestamp) {
+                final dt = (item['createdAt'] as Timestamp).toDate();
+                timeStr = '${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+              }
+
+              displayAlerts.add({
+                'title': item['title'] ?? 'Emergency Alert',
+                'location': item['location'] ?? 'Current Location',
+                'time': timeStr,
+                'type': type,
+                'icon': icon,
+              });
+            }
           }
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0A000000),
-                  blurRadius: 10,
-                  offset: Offset(0, 3),
+          // Add default fallback items if fewer alerts exist
+          if (displayAlerts.length < defaultAlerts.length) {
+            for (var d in defaultAlerts) {
+              if (!displayAlerts.any((a) => a['title'] == d['title'])) {
+                displayAlerts.add(d);
+              }
+            }
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            itemCount: displayAlerts.length,
+            itemBuilder: (context, index) {
+              final alert = displayAlerts[index];
+              Color badgeColor = AppColors.primary;
+              Color iconColor = AppColors.primary;
+
+              if (alert['type'] == 'warning') {
+                badgeColor = const Color(0xFFFFF3E0);
+                iconColor = AppColors.warningOrange;
+              } else if (alert['type'] == 'success') {
+                badgeColor = const Color(0xFFE8F8EE);
+                iconColor = AppColors.safeGreen;
+              } else if (alert['type'] == 'sos') {
+                badgeColor = const Color(0xFFFFEBEE);
+                iconColor = AppColors.sosRed;
+              } else {
+                badgeColor = AppColors.lightPinkCard;
+                iconColor = AppColors.primary;
+              }
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x0A000000),
+                      blurRadius: 10,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: badgeColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(alert['icon'] as IconData, color: iconColor, size: 22),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        alert['title'] as String,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: badgeColor,
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${alert['location']} • ${alert['time']}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textMuted,
-                        ),
+                      child: Icon(alert['icon'] as IconData, color: iconColor, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            alert['title'] as String,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${alert['location']} • ${alert['time']}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           );
         },
       ),
