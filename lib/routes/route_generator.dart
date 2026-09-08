@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
+import '../features/auth/screens/role_selection_screen.dart';
 import '../features/auth/screens/splash_screen.dart';
 import '../features/contacts/screens/contacts_screen.dart';
 import '../features/fake_call/screens/fake_call_screen.dart';
@@ -8,6 +9,13 @@ import '../features/home/screens/home_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/safe_route/screens/safe_route_screen.dart';
 import '../features/sos/screens/sos_screen.dart';
+import '../features/volunteer/screens/volunteer_home_screen.dart';
+import '../features/volunteer/screens/volunteer_incoming_alert_screen.dart';
+import '../features/volunteer/screens/volunteer_intro_screen.dart';
+import '../features/volunteer/screens/volunteer_pending_screen.dart';
+import '../features/volunteer/screens/volunteer_resolved_screen.dart';
+import '../features/volunteer/screens/volunteer_tracking_screen.dart';
+import '../features/volunteer/screens/volunteer_verification_screen.dart';
 import 'app_routes.dart';
 
 class RouteGenerator {
@@ -15,6 +23,22 @@ class RouteGenerator {
     switch (settings.name) {
       case AppRoutes.splash:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
+      case AppRoutes.roleSelection:
+        return MaterialPageRoute(builder: (_) => const RoleSelectionScreen());
+      case AppRoutes.volunteerIntro:
+        return MaterialPageRoute(builder: (_) => const VolunteerIntroScreen());
+      case AppRoutes.volunteerVerification:
+        return MaterialPageRoute(builder: (_) => const VolunteerVerificationScreen());
+      case AppRoutes.volunteerPending:
+        return MaterialPageRoute(builder: (_) => const VolunteerPendingScreen());
+      case AppRoutes.volunteerHome:
+        return MaterialPageRoute(builder: (_) => const VolunteerHomeScreen());
+      case AppRoutes.volunteerIncomingAlert:
+        return MaterialPageRoute(builder: (_) => const VolunteerIncomingAlertScreen());
+      case AppRoutes.volunteerTracking:
+        return MaterialPageRoute(builder: (_) => const VolunteerTrackingScreen());
+      case AppRoutes.volunteerResolved:
+        return MaterialPageRoute(builder: (_) => const VolunteerResolvedScreen());
       case AppRoutes.login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case AppRoutes.register:

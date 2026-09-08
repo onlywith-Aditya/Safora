@@ -1,26 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:safora/setup/create_collection.dart';
 import 'firebase_options.dart';
 import 'core/constants/app_colors.dart';
 import 'core/constants/app_strings.dart';
 import 'routes/app_routes.dart';
 import 'routes/route_generator.dart';
 
-
-
-// In main.dart
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  
-  // Uncomment for first run only
-  print("✅ Firebase Initialized");
-  await CreateCollections.createAll();
+  try { 
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization warning: $e');
+  }
   
   runApp(const SafeGuardApp());
 }
-
 
 class SafeGuardApp extends StatelessWidget {
   const SafeGuardApp({super.key});
@@ -43,3 +40,6 @@ class SafeGuardApp extends StatelessWidget {
     );
   }
 }
+
+// Backward compatibility alias
+typedef MyApp = SafeGuardApp;

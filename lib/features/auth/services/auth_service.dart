@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/services/local_storage_service.dart';
 
 class AuthResult {
   final bool isSuccess;
@@ -21,6 +22,7 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final LocalStorageService _storage = LocalStorageService();
 
   Map<String, dynamic>? _currentUser;
   Map<String, dynamic>? get currentUser => _currentUser;
@@ -29,6 +31,13 @@ class AuthService {
 
   /// Check if user is already signed in and restore session
   Future<bool> tryAutoLogin() async {
+    // 1. Try local storage first
+    final localUser = await _storage.getUserData();
+    if (localUser != null) {
+      _currentUser = localUser;
+      return true;
+    }
+
     final user = _auth.currentUser;
     if (user != null) {
       await fetchUserData(user.uid, email: user.email);
@@ -83,7 +92,7 @@ class AuthService {
     }
   }
 
-  /// Register new user with Firebase Auth and save details to Cloud Firestore
+  /// Register new user with Firebase Auth and save details to Cloud Firestore & Local Storage
   Future<AuthResult> register(Map<String, dynamic> userData) async {
     final cleanEmail = (userData['email'] as String).trim();
     final cleanPassword = (userData['password'] as String).trim();
@@ -106,12 +115,17 @@ class AuthService {
           'bloodGroup': userData['bloodGroup'] ?? 'O+',
           'address': userData['address'] ?? '',
           'contacts': userData['contacts'] ?? [],
-          'createdAt': FieldValue.serverTimestamp(),
+          'createdAt': DateTime.now().toIso8601String(),
         };
 
+        // Save to Local Device Storage
+        await _storage.saveUserData(userProfileData);
+
         try {
+          final firestoreData = Map<String, dynamic>.from(userProfileData);
+          firestoreData['createdAt'] = FieldValue.serverTimestamp();
           await _firestore.collection('users').doc(user.uid).set(
-            userProfileData,
+            firestoreData,
             SetOptions(merge: true),
           );
         } catch (_) {
@@ -140,10 +154,18 @@ class AuthService {
 
   /// Fetch user profile from Firestore or construct from Firebase User
   Future<void> fetchUserData(String uid, {String? email}) async {
+    // 1. Try device storage
+    final localData = await _storage.getUserData();
+    if (localData != null) {
+      _currentUser = localData;
+      return;
+    }
+
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
       if (doc.exists && doc.data() != null) {
         _currentUser = doc.data();
+        await _storage.saveUserData(_currentUser!);
         return;
       }
     } catch (_) {
@@ -162,6 +184,7 @@ class AuthService {
         {'name': 'Anita Verma', 'phone': '+91 91234 56744', 'relation': 'Sister'},
       ],
     };
+    await _storage.saveUserData(_currentUser!);
   }
 
   /// Log out
@@ -169,6 +192,7 @@ class AuthService {
     try {
       await _auth.signOut();
     } catch (_) {}
+    await _storage.clearAll();
     _currentUser = null;
   }
 }
