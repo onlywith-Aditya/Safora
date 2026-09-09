@@ -167,7 +167,28 @@ class VolunteerIntroScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushReplacementNamed(context, AppRoutes.volunteerLogin);
+                    },
+                    child: RichText(
+                      text: const TextSpan(
+                        text: 'Already registered? ',
+                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        children: [
+                          TextSpan(
+                            text: 'Login to Volunteer Account',
+                            style: TextStyle(
+                              color: Color(0xFFFF1D6B),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   const Text(
                     'By joining, you agree to respond responsibly and follow in-app safety guidance.',
                     textAlign: TextAlign.center,

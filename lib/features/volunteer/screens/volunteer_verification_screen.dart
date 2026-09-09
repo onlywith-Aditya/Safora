@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../../../routes/app_routes.dart';
-import '../../auth/services/auth_service.dart';
+import '../services/volunteer_service.dart';
 
 class VolunteerVerificationScreen extends StatefulWidget {
   const VolunteerVerificationScreen({super.key});
@@ -80,13 +80,14 @@ class _VolunteerVerificationScreenState extends State<VolunteerVerificationScree
 
     setState(() => _isLoading = true);
 
+    // Save all data at the LAST stage
     final volunteerData = {
       'name': _nameController.text.trim(),
       'fullName': _nameController.text.trim(),
       'phone': _phoneController.text.trim(),
       'email': _emailController.text.trim().isNotEmpty
           ? _emailController.text.trim()
-          : 'volunteer_${_phoneController.text.trim()}@safora.app',
+          : 'volunteer_${_phoneController.text.trim().replaceAll(' ', '')}@safora.app',
       'password': _passwordController.text.trim().isNotEmpty
           ? _passwordController.text
           : 'vol123456',
@@ -97,16 +98,15 @@ class _VolunteerVerificationScreenState extends State<VolunteerVerificationScree
       'role': 'volunteer',
       'isVerified': false,
       'verificationStatus': 'pending',
-      'contacts': [],
     };
 
-    final result = await AuthService().register(volunteerData);
+    final result = await VolunteerService().registerVolunteer(volunteerData);
 
     if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (result.isSuccess) {
-      _showSuccessDialog();
+      Navigator.pushReplacementNamed(context, AppRoutes.volunteerPending);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -115,54 +115,6 @@ class _VolunteerVerificationScreenState extends State<VolunteerVerificationScree
         ),
       );
     }
-  }
-
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        contentPadding: const EdgeInsets.all(24),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE8F5E9),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check_circle_rounded, color: AppColors.safeGreen, size: 44),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Application Submitted!',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Thank you for joining as a volunteer. Your profile and ID verification are under review. You can now access the volunteer hub.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
-            ),
-            const SizedBox(height: 24),
-            CustomButton(
-              text: 'Enter Dashboard',
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override

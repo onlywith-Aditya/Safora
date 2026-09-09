@@ -382,13 +382,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     text: 'Log Out',
                     isOutlined: true,
                     textColor: AppColors.primaryDark,
-                    onPressed: () {
-                      AuthService().logout();
-                      Navigator.pushNamedAndRemoveUntil(
-                        context,
-                        AppRoutes.login,
-                        (route) => false,
-                      );
+                    onPressed: () async {
+                      await AuthService().logout();
+                      if (context.mounted) {
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          AppRoutes.roleSelection,
+                          (route) => false,
+                        );
+                      }
                     },
                   ),
 
