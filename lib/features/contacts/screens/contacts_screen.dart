@@ -23,12 +23,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   void _loadContacts() {
     final user = AuthService().currentUser;
-    if (user != null && user['contacts'] != null) {
-      final list = user['contacts'] as List;
-      _contacts = list.map((c) => {
-        'name': c['name'].toString(),
-        'phone': c['phone'].toString(),
-        'relation': c['relation']?.toString() ?? 'Contact',
+    final rawList = user?['contacts'] ?? user?['emergencyContacts'];
+    if (rawList != null && rawList is List && rawList.isNotEmpty) {
+      _contacts = rawList.map((c) {
+        final map = c is Map ? c : {};
+        return {
+          'name': (map['name'] ?? map['fullName'] ?? 'Contact').toString(),
+          'phone': (map['phone'] ?? map['phoneNumber'] ?? '').toString(),
+          'relation': (map['relation'] ?? map['relationship'] ?? 'Family').toString(),
+        };
       }).toList();
     } else {
       _contacts = [

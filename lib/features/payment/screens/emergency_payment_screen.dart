@@ -98,6 +98,14 @@ class _EmergencyPaymentScreenState extends State<EmergencyPaymentScreen> {
       await FirebaseFirestore.instance.collection('sos_alerts').add(firestoreData);
     } catch (_) {}
 
+    // Save payment ID and payment amount into user profile & payments collection in Firestore
+    await AuthService().recordUserPayment(
+      paymentId: _transactionId,
+      amount: amount,
+      planName: planName,
+      paymentMethod: _selectedMethod,
+      alertId: alertPayload['alertId'] as String?,
+    );
 
     await LocalStorageService().saveActiveEmergency(alertPayload);
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/services/local_storage_service.dart';
 import '../../../routes/app_routes.dart';
 import '../services/auth_service.dart';
 
@@ -42,12 +43,30 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Check auth session and navigate after 2.5 seconds
     _timer = Timer(const Duration(milliseconds: 2500), () async {
-      final isLoggedIn = await AuthService().tryAutoLogin();
+      final storage = LocalStorageService();
+      final volData = await storage.getVolunteerData();
+      final userData = await storage.getUserData();
+
       if (mounted) {
-        if (isLoggedIn) {
+        if (volData != null && volData['email'] != null && (volData['email'] as String).isNotEmpty) {
+          final isVerified = volData['isVerified'] ?? true;
+          final verificationStatus = volData['verificationStatus'] ?? 'approved';
+          if (!isVerified || verificationStatus == 'pending') {
+            Navigator.pushReplacementNamed(context, AppRoutes.volunteerPending);
+          } else {
+            Navigator.pushReplacementNamed(context, AppRoutes.volunteerHome);
+          }
+        } else if (userData != null && userData['email'] != null && (userData['email'] as String).isNotEmpty) {
           Navigator.pushReplacementNamed(context, AppRoutes.home);
         } else {
-          Navigator.pushReplacementNamed(context, AppRoutes.roleSelection);
+          final isLoggedIn = await AuthService().tryAutoLogin();
+          if (mounted) {
+            if (isLoggedIn) {
+              Navigator.pushReplacementNamed(context, AppRoutes.home);
+            } else {
+              Navigator.pushReplacementNamed(context, AppRoutes.roleSelection);
+            }
+          }
         }
       }
     });

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../routes/app_routes.dart';
+import '../services/volunteer_service.dart';
 
 class VolunteerIncomingAlertScreen extends StatefulWidget {
   final Map<String, dynamic>? alertData;
@@ -321,15 +322,21 @@ class _VolunteerIncomingAlertScreenState extends State<VolunteerIncomingAlertScr
                     child: SizedBox(
                       height: 56,
                       child: OutlinedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           _timer?.cancel();
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Alert declined. Passed to next nearest volunteer.'),
-                              backgroundColor: Color(0xFF555B62),
-                            ),
-                          );
+                          final alertId = widget.alertData?['alertId'] ?? widget.alertData?['id'];
+                          if (alertId != null) {
+                            await VolunteerService().declineSosAlert(alertId.toString());
+                          }
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Alert declined. Passed to next nearest volunteer.'),
+                                backgroundColor: Color(0xFF555B62),
+                              ),
+                            );
+                          }
                         },
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Colors.white60, width: 1.5),
@@ -357,9 +364,19 @@ class _VolunteerIncomingAlertScreenState extends State<VolunteerIncomingAlertScr
                     child: SizedBox(
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           _timer?.cancel();
+                          final alertId = widget.alertData?['alertId'] ?? widget.alertData?['id'] ?? 'alert_${DateTime.now().millisecondsSinceEpoch}';
+                          
+                          // Update Firestore emergency_alerts & sos_alerts with volunteer acceptance
+                          await VolunteerService().acceptSosAlert(
+                            alertId.toString(),
+                            earningAmount: earningAmount,
+                            paymentId: paymentId,
+                          );
+
                           final payload = Map<String, dynamic>.from(widget.alertData ?? {});
+                          payload['alertId'] = alertId;
                           payload['victimName'] = victimName;
                           payload['amount'] = earningAmount;
                           payload['alertType'] = alertType;
@@ -368,11 +385,13 @@ class _VolunteerIncomingAlertScreenState extends State<VolunteerIncomingAlertScr
                           payload['phone'] = userPhone;
                           payload['paymentId'] = paymentId;
 
-                          Navigator.pushReplacementNamed(
-                            context,
-                            AppRoutes.volunteerTracking,
-                            arguments: payload,
-                          );
+                          if (context.mounted) {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              AppRoutes.volunteerTracking,
+                              arguments: payload,
+                            );
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,

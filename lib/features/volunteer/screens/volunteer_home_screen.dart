@@ -17,7 +17,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
   bool _isLoading = true;
 
   Map<String, dynamic> _profileData = {};
-  Map<String, dynamic> _earningsData = {'total': 3500, 'pending': 0};
+  Map<String, dynamic> _earningsData = {'total': 0, 'pending': 0};
   List<Map<String, dynamic>> _transactions = [];
 
   late AnimationController _radarController;
@@ -40,7 +40,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
   }
 
   Future<void> _loadData() async {
-    final profile = await VolunteerService().loadVolunteerProfile();
+    final profile = await VolunteerService().loadVolunteerProfile(forceRefresh: true);
     final duty = await VolunteerService().getDutyStatus();
     final earnings = await VolunteerService().getVolunteerEarnings();
     final txns = await VolunteerService().getEarningsTransactions();
@@ -85,12 +85,14 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
       _transactions = txns;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('₹$pending successfully verified & settled to Total Earnings!'),
-        backgroundColor: AppColors.safeGreen,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('₹$pending successfully verified & settled to Total Earnings!'),
+          backgroundColor: AppColors.safeGreen,
+        ),
+      );
+    }
   }
 
   void _triggerTestAlert() {
@@ -110,7 +112,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
         'address': 'Near Metro Pillar 42, Andheri West, Mumbai',
         'paymentId': 'SAF-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}',
       },
-    );
+    ).then((_) => _loadData());
   }
 
   void _showEditProfileDialog() {
@@ -177,7 +179,9 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
                     institution: instCtrl.text,
                     affiliation: affiliation,
                   );
-                  Navigator.pop(ctx);
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                  }
                   _loadData();
                 },
                 style: ElevatedButton.styleFrom(
@@ -294,7 +298,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
                   scale: 0.85,
                   child: Switch.adaptive(
                     value: _isOnDuty,
-                    activeColor: AppColors.safeGreen,
+                    activeTrackColor: AppColors.safeGreen,
                     onChanged: _toggleDuty,
                   ),
                 ),
@@ -512,6 +516,280 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
 
           const SizedBox(height: 20),
 
+          // Real-time Firestore Incoming Emergency Alerts with Payment Details
+          if (_isOnDuty)
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: VolunteerService().getIncomingAlertsStream(),
+              builder: (context, snapshot) {
+                final alerts = snapshot.data ?? [];
+                if (alerts.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE50914),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'LIVE DISTRESS ALERTS (${alerts.length})',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFE50914),
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...alerts.map((alert) {
+                      final victimName = alert['userName'] ?? alert['victimName'] ?? 'Woman in Distress';
+                      final amount = (alert['amount'] as num?)?.toInt() ?? 500;
+                      final paymentId = alert['paymentId'] ?? alert['transactionId'] ?? 'SAF-849201';
+                      final address = alert['userLocation'] ?? alert['location']?['address'] ?? 'Near Metro Pillar 42, Andheri West';
+                      final phone = alert['userPhone'] ?? alert['phone'] ?? '+91 98765 43210';
+                      final planName = alert['planName'] ?? alert['alertType'] ?? 'Volunteer Protection';
+                      final alertId = alert['id'] ?? alert['alertId'] ?? 'alert_${DateTime.now().millisecondsSinceEpoch}';
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: const Color(0xFFFFCDD2), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFE50914).withValues(alpha: 0.12),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header Row: User Info & Earning Amount
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFFFEBEE),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.warning_rounded, color: Color(0xFFE50914), size: 20),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          victimName,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        Text(
+                                          '$planName • $phone',
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0FDF4),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                                  ),
+                                  child: Text(
+                                    'Earn ₹$amount',
+                                    style: const TextStyle(
+                                      color: Color(0xFF166534),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Payment Verification Box
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFBEB),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.verified_user_rounded, color: Color(0xFFD97706), size: 16),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Payment Verified in Escrow: $paymentId • ₹$amount',
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF92400E),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            // Location text
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on_outlined, color: AppColors.textMuted, size: 16),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    address,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            // Action Buttons Row (Accept & Earn / Decline / Full Screen)
+                            Row(
+                              children: [
+                                // Decline Button
+                                Expanded(
+                                  flex: 3,
+                                  child: SizedBox(
+                                    height: 42,
+                                    child: OutlinedButton(
+                                      onPressed: () async {
+                                        await VolunteerService().declineSosAlert(alertId.toString());
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: Color(0xFFE0E0E0)),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      ),
+                                      child: const Text('Decline', style: TextStyle(color: Color(0xFF757575), fontWeight: FontWeight.w700, fontSize: 12.5)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+
+                                // Full Review Button (60s Alert)
+                                Expanded(
+                                  flex: 3,
+                                  child: SizedBox(
+                                    height: 42,
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Navigator.pushNamed(
+                                          context,
+                                          AppRoutes.volunteerIncomingAlert,
+                                          arguments: alert,
+                                        ).then((_) => _loadData());
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: Color(0xFFE50914)),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      ),
+                                      child: const Text('Review', style: TextStyle(color: Color(0xFFE50914), fontWeight: FontWeight.w800, fontSize: 12.5)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+
+                                // Accept & Earn Button
+                                Expanded(
+                                  flex: 5,
+                                  child: SizedBox(
+                                    height: 42,
+                                    child: ElevatedButton(
+                                      onPressed: () async {
+                                        await VolunteerService().acceptSosAlert(
+                                          alertId.toString(),
+                                          earningAmount: amount,
+                                          paymentId: paymentId,
+                                        );
+
+                                        final payload = Map<String, dynamic>.from(alert);
+                                        payload['alertId'] = alertId;
+                                        payload['victimName'] = victimName;
+                                        payload['amount'] = amount;
+                                        payload['address'] = address;
+                                        payload['phone'] = phone;
+                                        payload['paymentId'] = paymentId;
+
+                                        if (context.mounted) {
+                                          Navigator.pushNamed(
+                                            context,
+                                            AppRoutes.volunteerTracking,
+                                            arguments: payload,
+                                          ).then((_) => _loadData());
+                                        }
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF16A34A),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      ),
+                                      child: Text(
+                                        'Accept (₹$amount)',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                  ],
+                );
+              },
+            ),
+
+          const SizedBox(height: 14),
+
           // Simulator / Demo SOS Alert Trigger
           Container(
             width: double.infinity,
@@ -660,7 +938,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _transactions.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemBuilder: (ctx, i) {
                 final txn = _transactions[i];
                 final isPending = txn['status'] == 'Pending Verification';
@@ -760,7 +1038,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
     final phone = _profileData['phone'] ?? '+91 98201 12345';
     final institution = _profileData['institution'] ?? 'St. Xavier\'s College, Mumbai';
     final affiliation = _profileData['affiliation'] ?? 'College / Campus (NSS-NCC)';
-    final responses = _profileData['respondedCount'] ?? 14;
+    final responses = _profileData['respondedCount'] ?? 0;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -892,7 +1170,10 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen>
       ),
       child: BottomNavigationBar(
         currentIndex: _selectedTabIndex,
-        onTap: (index) => setState(() => _selectedTabIndex = index),
+        onTap: (index) {
+          setState(() => _selectedTabIndex = index);
+          _loadData();
+        },
         backgroundColor: Colors.white,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: Colors.grey,

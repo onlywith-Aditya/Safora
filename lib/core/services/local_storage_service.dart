@@ -188,7 +188,7 @@ class LocalStorageService {
         return decoded;
       }
     } catch (_) {}
-    return {'total': 3500, 'pending': 0};
+    return {'total': 0, 'pending': 0};
   }
 
   /// Save Earnings Transactions List

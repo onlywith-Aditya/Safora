@@ -111,7 +111,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                 scale: _pulseAnimation,
                 child: GestureDetector(
                   onTap: () {
-                    Navigator.pushReplacementNamed(context, AppRoutes.home);
+                    Navigator.pushNamed(context, AppRoutes.emergencyHome);
                   },
                   child: Container(
                     width: 190,

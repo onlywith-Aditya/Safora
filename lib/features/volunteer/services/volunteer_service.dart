@@ -16,6 +16,49 @@ class VolunteerService {
   Map<String, dynamic>? _currentVolunteer;
   Map<String, dynamic>? get currentVolunteer => _currentVolunteer;
 
+  /// Normalizes volunteer data to guarantee required keys are present
+  Map<String, dynamic> _normalizeVolunteerData(Map<String, dynamic>? raw, String uid, String email) {
+    final cleanEmail = email.trim();
+    final defaultName = cleanEmail.split('@').first;
+
+    final name = raw?['name'] ?? raw?['fullName'] ?? defaultName;
+    final fullName = raw?['fullName'] ?? raw?['name'] ?? defaultName;
+    final phone = raw?['phone'] ?? '+91 98201 12345';
+    final idType = raw?['idType'] ?? 'Aadhaar Card';
+    final affiliation = raw?['affiliation'] ?? 'College / Campus (NSS-NCC)';
+    final institution = raw?['institution'] ?? 'Safora Volunteer Network';
+    final isVerified = raw?['isVerified'] ?? true;
+    final verificationStatus = raw?['verificationStatus'] ?? 'approved';
+    final dutyStatus = raw?['dutyStatus'] ?? 'on_duty';
+    final respondedCount = (raw?['respondedCount'] as num?)?.toInt() ?? 0;
+    final rating = (raw?['rating'] as num?)?.toDouble() ?? 4.9;
+    final coverageRadiusKm = (raw?['coverageRadiusKm'] as num?)?.toDouble() ?? 1.8;
+
+    final normalized = Map<String, dynamic>.from(raw ?? {});
+    normalized['uid'] = uid;
+    normalized['name'] = name;
+    normalized['fullName'] = fullName;
+    normalized['email'] = cleanEmail;
+    normalized['phone'] = phone;
+    normalized['idType'] = idType;
+    normalized['affiliation'] = affiliation;
+    normalized['institution'] = institution;
+    normalized['role'] = 'volunteer';
+    normalized['isVerified'] = isVerified;
+    normalized['verificationStatus'] = verificationStatus;
+    normalized['dutyStatus'] = dutyStatus;
+    normalized['respondedCount'] = respondedCount;
+    normalized['rating'] = rating;
+    normalized['coverageRadiusKm'] = coverageRadiusKm;
+    normalized['currentLocation'] = raw?['currentLocation'] ?? {
+      'latitude': 19.1136,
+      'longitude': 72.8697,
+      'area': 'Andheri West, Mumbai',
+    };
+
+    return normalized;
+  }
+
   /// Login Volunteer with Email & Password and fetch details from Firestore 'volunteers' collection
   Future<AuthResult> loginVolunteer(String email, String password) async {
     final cleanEmail = email.trim();
@@ -30,18 +73,60 @@ class VolunteerService {
     }
 
     try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: cleanEmail,
-        password: cleanPassword,
-      );
+      User? user;
 
-      final user = credential.user;
+      try {
+        final credential = await _auth.signInWithEmailAndPassword(
+          email: cleanEmail,
+          password: cleanPassword,
+        );
+        user = credential.user;
+      } on FirebaseAuthException catch (authEx) {
+        if (authEx.code == 'user-not-found' || authEx.code == 'invalid-credential') {
+          // Check if volunteer exists in Firestore
+          try {
+            final query = await _firestore
+                .collection('volunteers')
+                .where('email', isEqualTo: cleanEmail)
+                .limit(1)
+                .get()
+                .timeout(const Duration(seconds: 4));
+
+            if (query.docs.isNotEmpty) {
+              final cred = await _auth.createUserWithEmailAndPassword(
+                email: cleanEmail,
+                password: cleanPassword,
+              );
+              user = cred.user;
+            } else {
+              return AuthResult(
+                isSuccess: false,
+                errorMessage: 'Volunteer account not found. Please join as a volunteer.',
+                isUserNotFound: true,
+              );
+            }
+          } catch (_) {
+            return AuthResult(
+              isSuccess: false,
+              errorMessage: authEx.message ?? 'Invalid email or password',
+              isUserNotFound: true,
+            );
+          }
+        } else {
+          rethrow;
+        }
+      }
+
       if (user != null) {
         Map<String, dynamic>? volunteerDoc;
 
         // 1. Try fetching document by UID from volunteers collection
         try {
-          final doc = await _firestore.collection('volunteers').doc(user.uid).get();
+          final doc = await _firestore
+              .collection('volunteers')
+              .doc(user.uid)
+              .get()
+              .timeout(const Duration(seconds: 4));
           if (doc.exists && doc.data() != null) {
             volunteerDoc = Map<String, dynamic>.from(doc.data()!);
             volunteerDoc['uid'] = user.uid;
@@ -57,68 +142,56 @@ class VolunteerService {
                 .collection('volunteers')
                 .where('email', isEqualTo: cleanEmail)
                 .limit(1)
-                .get();
+                .get()
+                .timeout(const Duration(seconds: 4));
             if (query.docs.isNotEmpty) {
               volunteerDoc = Map<String, dynamic>.from(query.docs.first.data());
-              volunteerDoc['uid'] = query.docs.first.id;
+              volunteerDoc['uid'] = user.uid;
             }
           } catch (e) {
             debugPrint('Firestore query by email failed: $e');
           }
         }
 
-        // 3. If found in Firestore, save to local storage
-        if (volunteerDoc != null) {
-          _currentVolunteer = volunteerDoc;
-          await _storage.saveVolunteerData(volunteerDoc);
-
+        // 3. Fallback: check users collection
+        if (volunteerDoc == null) {
           try {
-            await _firestore.collection('volunteers').doc(volunteerDoc['uid']).set(
-              {'lastLoginAt': FieldValue.serverTimestamp()},
-              SetOptions(merge: true),
-            );
+            final userDoc = await _firestore
+                .collection('users')
+                .doc(user.uid)
+                .get()
+                .timeout(const Duration(seconds: 4));
+            if (userDoc.exists && userDoc.data() != null) {
+              volunteerDoc = Map<String, dynamic>.from(userDoc.data()!);
+              volunteerDoc['uid'] = user.uid;
+            }
           } catch (_) {}
-
-          return AuthResult(isSuccess: true);
         }
 
-        // 4. If doc is missing from Firestore, check device local storage
-        final localData = await _storage.getVolunteerData();
-        if (localData != null && (localData['email'] == cleanEmail || localData['uid'] == user.uid)) {
-          _currentVolunteer = localData;
-          return AuthResult(isSuccess: true);
-        }
+        // 4. Normalize Volunteer Data
+        final normalized = _normalizeVolunteerData(volunteerDoc, user.uid, user.email ?? cleanEmail);
+        _currentVolunteer = normalized;
+        await _storage.saveVolunteerData(normalized);
 
-        // 5. Default fallback profile for newly verified / imported volunteers
-        final defaultVol = {
-          'uid': user.uid,
-          'fullName': cleanEmail.split('@').first,
-          'name': cleanEmail.split('@').first,
-          'email': cleanEmail,
-          'phone': '+91 98765 43210',
-          'idType': 'Aadhaar Card',
-          'affiliation': 'College / Campus (NSS-NCC)',
-          'institution': 'Safora Volunteer Network',
-          'role': 'volunteer',
-          'isVerified': true,
-          'verificationStatus': 'approved',
-          'dutyStatus': 'on_duty',
-          'respondedCount': 14,
-          'rating': 4.9,
-          'coverageRadiusKm': 1.8,
-          'currentLocation': {
-            'latitude': 19.1136,
-            'longitude': 72.8697,
-            'area': 'Andheri West, Mumbai',
-          },
-        };
+        // 5. Update last login in Firestore
+        try {
+          await _firestore.collection('volunteers').doc(user.uid).set(
+            {
+              'lastLoginAt': FieldValue.serverTimestamp(),
+              'email': cleanEmail,
+              'name': normalized['name'],
+              'fullName': normalized['fullName'],
+              'dutyStatus': normalized['dutyStatus'],
+              'isVerified': normalized['isVerified'],
+            },
+            SetOptions(merge: true),
+          );
+        } catch (_) {}
 
-        _currentVolunteer = defaultVol;
-        await _storage.saveVolunteerData(defaultVol);
         return AuthResult(isSuccess: true);
       }
 
-      return AuthResult(isSuccess: false, errorMessage: 'Login failed', isUserNotFound: true);
+      return AuthResult(isSuccess: false, errorMessage: 'Volunteer login failed', isUserNotFound: true);
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
         return AuthResult(isSuccess: false, errorMessage: 'Volunteer account not found. Please join as a volunteer.', isUserNotFound: true);
@@ -175,7 +248,7 @@ class VolunteerService {
       'isVerified': false,
       'verificationStatus': 'pending',
       'dutyStatus': 'off_duty',
-      'respondedCount': 14,
+      'respondedCount': 0,
       'rating': 4.9,
       'coverageRadiusKm': 1.8,
       'currentLocation': {
@@ -206,6 +279,10 @@ class VolunteerService {
 
   /// Fetch volunteer data from local storage or Firestore
   Future<Map<String, dynamic>> loadVolunteerProfile({bool forceRefresh = false}) async {
+    final user = _auth.currentUser;
+    final cleanEmail = user?.email ?? _currentVolunteer?['email'] ?? 'volunteer@safora.app';
+    final uid = user?.uid ?? _currentVolunteer?['uid'] ?? 'vol_mock';
+
     if (!forceRefresh) {
       final localData = await _storage.getVolunteerData();
       if (localData != null) {
@@ -214,29 +291,33 @@ class VolunteerService {
       }
     }
 
-    final user = _auth.currentUser;
     if (user != null) {
       try {
-        final doc = await _firestore.collection('volunteers').doc(user.uid).get();
+        final doc = await _firestore
+            .collection('volunteers')
+            .doc(user.uid)
+            .get()
+            .timeout(const Duration(seconds: 4));
         if (doc.exists && doc.data() != null) {
-          _currentVolunteer = Map<String, dynamic>.from(doc.data()!);
-          _currentVolunteer!['uid'] = user.uid;
-          await _storage.saveVolunteerData(_currentVolunteer!);
-          return _currentVolunteer!;
+          final normalized = _normalizeVolunteerData(doc.data(), user.uid, cleanEmail);
+          _currentVolunteer = normalized;
+          await _storage.saveVolunteerData(normalized);
+          return normalized;
         }
 
         // Query by email
-        if (user.email != null && user.email!.isNotEmpty) {
+        if (cleanEmail.isNotEmpty) {
           final query = await _firestore
               .collection('volunteers')
-              .where('email', isEqualTo: user.email!.trim())
+              .where('email', isEqualTo: cleanEmail)
               .limit(1)
-              .get();
+              .get()
+              .timeout(const Duration(seconds: 4));
           if (query.docs.isNotEmpty) {
-            _currentVolunteer = Map<String, dynamic>.from(query.docs.first.data());
-            _currentVolunteer!['uid'] = query.docs.first.id;
-            await _storage.saveVolunteerData(_currentVolunteer!);
-            return _currentVolunteer!;
+            final normalized = _normalizeVolunteerData(query.docs.first.data(), user.uid, cleanEmail);
+            _currentVolunteer = normalized;
+            await _storage.saveVolunteerData(normalized);
+            return normalized;
           }
         }
       } catch (e) {
@@ -250,30 +331,10 @@ class VolunteerService {
       return localData;
     }
 
-    _currentVolunteer = {
-      'uid': user?.uid ?? 'vol_mock_101',
-      'fullName': 'Aarav Sharma',
-      'name': 'Aarav Sharma',
-      'email': user?.email ?? 'aarav.sharma@nss.org',
-      'phone': '+91 98201 12345',
-      'idType': 'Aadhaar Card',
-      'affiliation': 'College / Campus (NSS-NCC)',
-      'institution': 'St. Xavier\'s College, Mumbai',
-      'role': 'volunteer',
-      'isVerified': true,
-      'verificationStatus': 'approved',
-      'dutyStatus': 'on_duty',
-      'respondedCount': 14,
-      'rating': 4.9,
-      'coverageRadiusKm': 1.8,
-      'currentLocation': {
-        'latitude': 19.1136,
-        'longitude': 72.8697,
-        'area': 'Andheri West, Mumbai',
-      },
-    };
-    await _storage.saveVolunteerData(_currentVolunteer!);
-    return _currentVolunteer!;
+    final normalized = _normalizeVolunteerData(null, uid, cleanEmail);
+    _currentVolunteer = normalized;
+    await _storage.saveVolunteerData(normalized);
+    return normalized;
   }
 
   /// Toggle Duty Status (on_duty / off_duty)
@@ -305,28 +366,67 @@ class VolunteerService {
 
   /// Real-time stream of incoming active alerts within radius
   Stream<List<Map<String, dynamic>>> getIncomingAlertsStream() {
+    final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid ?? 'vol_mock';
     try {
       return _firestore
           .collection('emergency_alerts')
           .where('status', isEqualTo: 'active')
           .snapshots()
           .map((snapshot) {
-        return snapshot.docs.map((doc) {
-          final data = doc.data();
-          data['id'] = doc.id;
-          return data;
-        }).toList();
+        return snapshot.docs
+            .map((doc) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              data['alertId'] = data['alertId'] ?? doc.id;
+              return data;
+            })
+            .where((alert) {
+              final declined = alert['declinedBy'];
+              if (declined is List && declined.contains(uid)) {
+                return false;
+              }
+              return true;
+            })
+            .toList();
       });
     } catch (_) {
       return Stream.value([]);
     }
   }
 
-  /// Accept SOS Alert
+  /// Accept SOS Alert - increments volunteer earnings dynamically
   Future<bool> acceptSosAlert(String alertId, {int earningAmount = 500, String? paymentId}) async {
     final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid ?? 'vol_mock';
     final name = _currentVolunteer?['fullName'] ?? 'Aarav Sharma';
     final phone = _currentVolunteer?['phone'] ?? '+91 98201 12345';
+    final txnId = paymentId ?? 'PAY_SAFE_${DateTime.now().millisecondsSinceEpoch}';
+
+    // Increase total volunteer earnings upon accepting client deal
+    final earnings = await _storage.getVolunteerEarnings();
+    final currentTotal = (earnings['total'] as num?)?.toInt() ?? 0;
+    earnings['total'] = currentTotal + earningAmount;
+    await _storage.saveVolunteerEarnings(earnings);
+
+    // Save transaction to local storage
+    final txns = await _storage.getEarningsTransactions();
+    txns.insert(0, {
+      'id': txnId,
+      'title': 'Emergency Protection Deal Accepted',
+      'victimName': 'Emergency Assistance',
+      'date': 'Today, ${_formatTime(DateTime.now())}',
+      'amount': earningAmount,
+      'status': 'Settled & Verified',
+      'paymentId': txnId,
+      'type': 'credit',
+    });
+    await _storage.saveEarningsTransactions(txns);
+
+    // Increment responded count in volunteer profile
+    if (_currentVolunteer != null) {
+      final count = (_currentVolunteer!['respondedCount'] ?? 0) as int;
+      _currentVolunteer!['respondedCount'] = count + 1;
+      await _storage.saveVolunteerData(_currentVolunteer!);
+    }
 
     try {
       await _firestore.collection('emergency_alerts').doc(alertId).set({
@@ -337,7 +437,7 @@ class VolunteerService {
           'volunteerPhone': phone,
           'acceptedAt': FieldValue.serverTimestamp(),
           'earningAmount': earningAmount,
-          'paymentId': paymentId ?? 'PAY_SAFE_${DateTime.now().millisecondsSinceEpoch}',
+          'paymentId': txnId,
         },
       }, SetOptions(merge: true));
 
@@ -353,6 +453,14 @@ class VolunteerService {
           'acceptedAt': FieldValue.serverTimestamp(),
         },
       }, SetOptions(merge: true));
+
+      // Update volunteer stats in Firestore
+      if (uid.isNotEmpty) {
+        await _firestore.collection('volunteers').doc(uid).set({
+          'totalEarnings': FieldValue.increment(earningAmount),
+          'respondedCount': FieldValue.increment(1),
+        }, SetOptions(merge: true));
+      }
 
       return true;
     } catch (e) {
@@ -397,32 +505,31 @@ class VolunteerService {
     history.insert(0, entry);
     await _storage.saveVolunteerHistory(history);
 
-    // Update Earnings (Step 5: Earn Money)
-    final earnings = await _storage.getVolunteerEarnings();
-    final currentPending = (earnings['pending'] as num?)?.toInt() ?? 0;
-    earnings['pending'] = currentPending + earnedAmount;
-    await _storage.saveVolunteerEarnings(earnings);
-
-    // Add to transaction log
+    // Update transactions with victim name and status
     final txns = await _storage.getEarningsTransactions();
-    txns.insert(0, {
-      'id': txnId,
-      'title': 'Emergency Protection Response',
-      'victimName': victimName,
-      'date': 'Today, ${_formatTime(DateTime.now())}',
-      'amount': earnedAmount,
-      'status': 'Pending Verification',
-      'paymentId': txnId,
-      'type': 'credit',
-    });
-    await _storage.saveEarningsTransactions(txns);
-
-    // Increment responded count in volunteer profile
-    if (_currentVolunteer != null) {
-      final count = (_currentVolunteer!['respondedCount'] ?? 14) as int;
-      _currentVolunteer!['respondedCount'] = count + 1;
-      await _storage.saveVolunteerData(_currentVolunteer!);
+    final existingIndex = txns.indexWhere((t) => t['paymentId'] == txnId || t['id'] == txnId);
+    if (existingIndex >= 0) {
+      txns[existingIndex]['victimName'] = victimName;
+      txns[existingIndex]['title'] = 'Emergency Protection - $victimName';
+      txns[existingIndex]['status'] = 'Settled & Verified';
+    } else {
+      txns.insert(0, {
+        'id': txnId,
+        'title': 'Emergency Protection - $victimName',
+        'victimName': victimName,
+        'date': 'Today, ${_formatTime(DateTime.now())}',
+        'amount': earnedAmount,
+        'status': 'Settled & Verified',
+        'paymentId': txnId,
+        'type': 'credit',
+      });
+      // Also ensure earnings reflect this deal if not credited earlier
+      final earnings = await _storage.getVolunteerEarnings();
+      final currentTotal = (earnings['total'] as num?)?.toInt() ?? 0;
+      earnings['total'] = currentTotal + earnedAmount;
+      await _storage.saveVolunteerEarnings(earnings);
     }
+    await _storage.saveEarningsTransactions(txns);
 
     final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid;
     if (uid != null) {
@@ -440,7 +547,7 @@ class VolunteerService {
     }
   }
 
-  /// Get Volunteer Earnings { 'total': 3500, 'pending': 500 }
+  /// Get Volunteer Earnings { 'total': 0, 'pending': 0 }
   Future<Map<String, dynamic>> getVolunteerEarnings() async {
     return await _storage.getVolunteerEarnings();
   }
@@ -448,7 +555,7 @@ class VolunteerService {
   /// Settle Pending Earnings to Total Earnings
   Future<Map<String, dynamic>> settlePendingEarnings() async {
     final earnings = await _storage.getVolunteerEarnings();
-    final total = (earnings['total'] as num?)?.toInt() ?? 3500;
+    final total = (earnings['total'] as num?)?.toInt() ?? 0;
     final pending = (earnings['pending'] as num?)?.toInt() ?? 0;
 
     if (pending > 0) {
@@ -470,63 +577,7 @@ class VolunteerService {
 
   /// Get Earnings Transactions
   Future<List<Map<String, dynamic>>> getEarningsTransactions() async {
-    final txns = await _storage.getEarningsTransactions();
-    if (txns.isEmpty) {
-      // Default initial mock transactions
-      return [
-        {
-          'id': 'TXN_982310',
-          'title': 'Volunteer Protection Assistance',
-          'victimName': 'Pooja Deshmukh',
-          'date': 'Yesterday, 9:42 PM',
-          'amount': 500,
-          'status': 'Settled & Verified',
-          'paymentId': 'PAY_SAF_883921',
-          'type': 'credit',
-        },
-        {
-          'id': 'TXN_982104',
-          'title': 'Priority Protection Escort',
-          'victimName': 'Ananya Verma',
-          'date': '3 Sep, 11:15 PM',
-          'amount': 1000,
-          'status': 'Settled & Verified',
-          'paymentId': 'PAY_SAF_774102',
-          'type': 'credit',
-        },
-        {
-          'id': 'TXN_981902',
-          'title': 'Volunteer Protection Assistance',
-          'victimName': 'Ritu Sharma',
-          'date': '28 Aug, 8:20 PM',
-          'amount': 500,
-          'status': 'Settled & Verified',
-          'paymentId': 'PAY_SAF_663201',
-          'type': 'credit',
-        },
-        {
-          'id': 'TXN_981540',
-          'title': 'Priority Protection Escort',
-          'victimName': 'Meera Patel',
-          'date': '22 Aug, 10:05 PM',
-          'amount': 1000,
-          'status': 'Settled & Verified',
-          'paymentId': 'PAY_SAF_552190',
-          'type': 'credit',
-        },
-        {
-          'id': 'TXN_981200',
-          'title': 'Volunteer Protection Assistance',
-          'victimName': 'Neha Gupta',
-          'date': '15 Aug, 7:50 PM',
-          'amount': 500,
-          'status': 'Settled & Verified',
-          'paymentId': 'PAY_SAF_441029',
-          'type': 'credit',
-        },
-      ];
-    }
-    return txns;
+    return await _storage.getEarningsTransactions();
   }
 
   /// Update Volunteer Profile Details

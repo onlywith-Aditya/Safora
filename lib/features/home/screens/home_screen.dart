@@ -31,6 +31,16 @@ class _HomeScreenState extends State<HomeScreen>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _refreshUserData();
+  }
+
+  Future<void> _refreshUserData() async {
+    final uid = AuthService().currentFirebaseUser?.uid ?? AuthService().currentUser?['uid'];
+    if (uid != null) {
+      await AuthService().fetchUserData(uid, forceRefresh: true);
+      if (mounted) setState(() {});
+    }
   }
 
   @override
