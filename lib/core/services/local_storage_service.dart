@@ -164,6 +164,63 @@ class LocalStorageService {
     return null;
   }
 
+  static const String _keyVolunteerEarnings = 'safora_volunteer_earnings';
+  static const String _keyEarningsTransactions = 'safora_earnings_transactions';
+
+  /// Save Volunteer Earnings Map { 'total': 3500, 'pending': 500 }
+  Future<void> saveVolunteerEarnings(Map<String, dynamic> earnings) async {
+    _memoryCache[_keyVolunteerEarnings] = earnings;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyVolunteerEarnings, jsonEncode(earnings));
+    } catch (_) {}
+  }
+
+  /// Get Volunteer Earnings Map
+  Future<Map<String, dynamic>> getVolunteerEarnings() async {
+    if (_memoryCache.containsKey(_keyVolunteerEarnings)) {
+      return Map<String, dynamic>.from(_memoryCache[_keyVolunteerEarnings] as Map);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final earningsJson = prefs.getString(_keyVolunteerEarnings);
+      if (earningsJson != null) {
+        final decoded = jsonDecode(earningsJson) as Map<String, dynamic>;
+        _memoryCache[_keyVolunteerEarnings] = decoded;
+        return decoded;
+      }
+    } catch (_) {}
+    return {'total': 3500, 'pending': 0};
+  }
+
+  /// Save Earnings Transactions List
+  Future<void> saveEarningsTransactions(List<Map<String, dynamic>> txns) async {
+    _memoryCache[_keyEarningsTransactions] = txns;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyEarningsTransactions, jsonEncode(txns));
+    } catch (_) {}
+  }
+
+  /// Get Earnings Transactions List
+  Future<List<Map<String, dynamic>>> getEarningsTransactions() async {
+    if (_memoryCache.containsKey(_keyEarningsTransactions)) {
+      final list = _memoryCache[_keyEarningsTransactions] as List;
+      return list.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final txnsJson = prefs.getString(_keyEarningsTransactions);
+      if (txnsJson != null) {
+        final decoded = jsonDecode(txnsJson) as List;
+        final list = decoded.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        _memoryCache[_keyEarningsTransactions] = list;
+        return list;
+      }
+    } catch (_) {}
+    return [];
+  }
+
   /// Clear all saved data on Device
   Future<void> clearAll() async {
     _memoryCache.clear();
@@ -173,4 +230,5 @@ class LocalStorageService {
     } catch (_) {}
   }
 }
+
 

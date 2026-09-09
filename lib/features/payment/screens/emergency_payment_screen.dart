@@ -52,18 +52,26 @@ class _EmergencyPaymentScreenState extends State<EmergencyPaymentScreen> {
     final user = AuthService().currentUser;
     final userName = user != null ? (user['name'] ?? 'Priya Sharma') : 'Priya Sharma';
     final userPhone = user != null ? (user['phone'] ?? '+91 98765 43210') : '+91 98765 43210';
+    final userEmail = user != null ? (user['email'] ?? 'priya@safora.app') : 'priya@safora.app';
+    final userId = user != null ? (user['uid'] ?? 'usr_${DateTime.now().millisecondsSinceEpoch}') : 'usr_${DateTime.now().millisecondsSinceEpoch}';
     final planName = widget.planData?['planName'] ?? 'Volunteer Protection';
     final amount = widget.planData?['amount'] ?? 500;
 
-    // Dispatch Emergency Alert to Firestore & local storage for volunteers
+    // Dispatch Emergency Alert to Firestore & local storage with payment and user information
     final alertPayload = {
       'alertId': 'alert_${DateTime.now().millisecondsSinceEpoch}',
+      'paymentId': _transactionId,
+      'transactionId': _transactionId,
+      'amount': amount,
+      'amountPaid': amount,
+      'paymentStatus': 'PAID',
+      'userId': userId,
       'userName': userName,
+      'userPhone': userPhone,
+      'userEmail': userEmail,
       'phone': userPhone,
       'alertType': planName,
-      'amountPaid': amount,
-      'paymentStatus': 'SUCCESS',
-      'transactionId': _transactionId,
+      'userLocation': 'Near Metro Pillar 42, Andheri West, Mumbai',
       'location': {
         'address': 'Near Metro Pillar 42, Andheri West, Mumbai',
         'latitude': 19.1136,
@@ -83,11 +91,13 @@ class _EmergencyPaymentScreenState extends State<EmergencyPaymentScreen> {
     };
 
     try {
-      await FirebaseFirestore.instance.collection('emergency_alerts').add({
-        ...alertPayload,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      final firestoreData = Map<String, dynamic>.from(alertPayload);
+      firestoreData['timestamp'] = FieldValue.serverTimestamp();
+
+      await FirebaseFirestore.instance.collection('emergency_alerts').add(firestoreData);
+      await FirebaseFirestore.instance.collection('sos_alerts').add(firestoreData);
     } catch (_) {}
+
 
     await LocalStorageService().saveActiveEmergency(alertPayload);
 

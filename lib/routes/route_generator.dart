@@ -36,11 +36,15 @@ class RouteGenerator {
       case AppRoutes.volunteerHome:
         return MaterialPageRoute(builder: (_) => const VolunteerHomeScreen());
       case AppRoutes.volunteerIncomingAlert:
-        return MaterialPageRoute(builder: (_) => const VolunteerIncomingAlertScreen());
+        final alertData = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(builder: (_) => VolunteerIncomingAlertScreen(alertData: alertData));
       case AppRoutes.volunteerTracking:
-        return MaterialPageRoute(builder: (_) => const VolunteerTrackingScreen());
+        final alertData = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(builder: (_) => VolunteerTrackingScreen(alertData: alertData));
       case AppRoutes.volunteerResolved:
-        return MaterialPageRoute(builder: (_) => const VolunteerResolvedScreen());
+        final resolvedData = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(builder: (_) => VolunteerResolvedScreen(resolvedData: resolvedData));
+
       case AppRoutes.login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case AppRoutes.register:

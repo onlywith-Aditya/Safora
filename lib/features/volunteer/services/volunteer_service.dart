@@ -243,8 +243,98 @@ class VolunteerService {
     return defaultHistory;
   }
 
-  /// Log response to an SOS event in Firestore & increment stats & add to history
-  Future<void> logSosResponse({required String victimName, required String location}) async {
+  /// Get Volunteer Earnings data (total balance & pending balance)
+  Future<Map<String, dynamic>> getVolunteerEarnings() async {
+    return await _storage.getVolunteerEarnings();
+  }
+
+  /// Get Earnings Transactions History
+  Future<List<Map<String, dynamic>>> getEarningsTransactions() async {
+    final existing = await _storage.getEarningsTransactions();
+    if (existing.isNotEmpty) {
+      return existing;
+    }
+
+    final defaultTxns = [
+      {
+        'id': 'TXN_99182',
+        'victimName': 'Pooja Sharma',
+        'amount': 500,
+        'status': 'Verified & Paid',
+        'isPending': false,
+        'date': 'Yesterday, 09:20 PM',
+        'type': 'Emergency Rescue Protection',
+      },
+      {
+        'id': 'TXN_88412',
+        'victimName': 'Ananya Roy',
+        'amount': 500,
+        'status': 'Verified & Paid',
+        'isPending': false,
+        'date': '05 Sep 2026, 11:15 PM',
+        'type': 'Safe Walk Assistance',
+      },
+      {
+        'id': 'TXN_77201',
+        'victimName': 'Riya Patel',
+        'amount': 1000,
+        'status': 'Verified & Paid',
+        'isPending': false,
+        'date': '02 Sep 2026, 08:40 PM',
+        'type': 'Priority Protection Rescue',
+      },
+      {
+        'id': 'TXN_66190',
+        'victimName': 'Kavita Joshi',
+        'amount': 500,
+        'status': 'Verified & Paid',
+        'isPending': false,
+        'date': '28 Aug 2026, 10:30 PM',
+        'type': 'Emergency Rescue Protection',
+      },
+    ];
+
+    await _storage.saveEarningsTransactions(defaultTxns);
+    return defaultTxns;
+  }
+
+  /// Settle Pending Earnings into Total Earnings after verification
+  Future<Map<String, dynamic>> settlePendingEarnings() async {
+    final earnings = await _storage.getVolunteerEarnings();
+    final pending = (earnings['pending'] as num?)?.toInt() ?? 0;
+    final total = (earnings['total'] as num?)?.toInt() ?? 3500;
+
+    if (pending > 0) {
+      final updated = {
+        'total': total + pending,
+        'pending': 0,
+      };
+      await _storage.saveVolunteerEarnings(updated);
+
+      // Mark pending transactions as verified
+      final txns = await getEarningsTransactions();
+      final updatedTxns = txns.map((t) {
+        if (t['isPending'] == true) {
+          return {
+            ...t,
+            'isPending': false,
+            'status': 'Verified & Paid',
+          };
+        }
+        return t;
+      }).toList();
+      await _storage.saveEarningsTransactions(updatedTxns);
+      return updated;
+    }
+    return earnings;
+  }
+
+  /// Log response to an SOS event in Firestore & increment stats & add to history & add to pending earnings
+  Future<void> logSosResponse({
+    required String victimName,
+    required String location,
+    int amount = 500,
+  }) async {
     final currentCount = (_currentVolunteer?['respondedCount'] as int?) ?? 14;
     final newCount = currentCount + 1;
 
@@ -253,13 +343,14 @@ class VolunteerService {
       await _storage.saveVolunteerData(_currentVolunteer!);
     }
 
-    // Add entry to history
+    // 1. Add entry to rescue history
     final history = await getVolunteerHistory();
     final newEntry = {
       'id': 'res_${DateTime.now().millisecondsSinceEpoch}',
       'victimName': victimName,
       'location': location,
-      'alertType': 'Manual SOS',
+      'alertType': 'Volunteer Protection',
+      'earning': '₹$amount',
       'responseTime': '3 mins',
       'status': 'Resolved',
       'timestamp': 'Just now',
@@ -268,12 +359,37 @@ class VolunteerService {
     final updatedHistory = [newEntry, ...history];
     await _storage.saveVolunteerHistory(updatedHistory);
 
+    // 2. Add amount to Pending Earnings
+    final currentEarnings = await _storage.getVolunteerEarnings();
+    final currentPending = (currentEarnings['pending'] as num?)?.toInt() ?? 0;
+    final currentTotal = (currentEarnings['total'] as num?)?.toInt() ?? 3500;
+    await _storage.saveVolunteerEarnings({
+      'total': currentTotal,
+      'pending': currentPending + amount,
+    });
+
+    // 3. Add to Transactions list as Pending Verification
+    final txns = await getEarningsTransactions();
+    final newTxn = {
+      'id': 'TXN_${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+      'victimName': victimName,
+      'amount': amount,
+      'status': 'Pending Verification',
+      'isPending': true,
+      'date': 'Today (Just now)',
+      'type': 'Emergency Rescue (₹$amount)',
+    };
+    await _storage.saveEarningsTransactions([newTxn, ...txns]);
+
+    // 4. Update Firestore
     final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid;
     if (uid != null) {
       try {
         await _firestore.collection('volunteers').doc(uid).set(
           {
             'respondedCount': newCount,
+            'totalEarnings': currentTotal,
+            'pendingEarnings': currentPending + amount,
             'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
@@ -283,6 +399,7 @@ class VolunteerService {
         await _firestore.collection('volunteers').doc(uid).collection('responses').add({
           'victimName': victimName,
           'location': location,
+          'amountEarned': amount,
           'status': 'resolved',
           'timestamp': FieldValue.serverTimestamp(),
         });
@@ -299,3 +416,4 @@ class VolunteerService {
     _currentVolunteer = null;
   }
 }
+

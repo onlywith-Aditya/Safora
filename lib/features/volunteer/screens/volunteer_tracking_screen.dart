@@ -1,13 +1,109 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../routes/app_routes.dart';
+import '../../fake_call/screens/fake_call_screen.dart';
 import '../services/volunteer_service.dart';
 
-class VolunteerTrackingScreen extends StatelessWidget {
-  const VolunteerTrackingScreen({super.key});
+class VolunteerTrackingScreen extends StatefulWidget {
+  final Map<String, dynamic>? alertData;
+
+  const VolunteerTrackingScreen({super.key, this.alertData});
+
+  @override
+  State<VolunteerTrackingScreen> createState() => _VolunteerTrackingScreenState();
+}
+
+class _VolunteerTrackingScreenState extends State<VolunteerTrackingScreen> {
+  bool _isNavigating = false;
+  bool _isArrived = false;
+
+  void _callWoman(String name, String phone) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FakeCallScreen(
+          callerName: name,
+          callerNumber: 'Woman in Distress • $phone',
+          callerInitial: name.isNotEmpty ? name[0] : 'W',
+        ),
+      ),
+    );
+  }
+
+  void _handleMarkArrived() {
+    setState(() {
+      _isArrived = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Marked as Arrived! Victim notified you are at the location.'),
+        backgroundColor: AppColors.safeGreen,
+      ),
+    );
+  }
+
+  void _handleMarkResolved(String victimName, String location, int amount) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Row(
+          children: [
+            Icon(Icons.verified_rounded, color: AppColors.safeGreen),
+            SizedBox(width: 8),
+            Text('Confirm Safety', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          ],
+        ),
+        content: Text(
+          'Confirm that $victimName is safe and the emergency situation has been successfully resolved.\n\n₹$amount will be added to your pending earnings.',
+          style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await VolunteerService().logSosResponse(
+                victimName: victimName,
+                location: location,
+                amount: amount,
+              );
+              if (mounted) {
+                Navigator.pushReplacementNamed(
+                  context,
+                  AppRoutes.volunteerResolved,
+                  arguments: {
+                    'victimName': victimName,
+                    'amount': amount,
+                    'location': location,
+                  },
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.safeGreen,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text('Confirm & Complete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final victimName = widget.alertData?['victimName'] ?? widget.alertData?['userName'] ?? 'Sneha Kapoor';
+    final amount = (widget.alertData?['amount'] as num?)?.toInt() ?? 500;
+    final alertType = widget.alertData?['alertType'] ?? 'Volunteer Protection';
+    final address = widget.alertData?['address'] ?? 'Near Metro Pillar 42, Andheri West, Mumbai';
+    final phone = widget.alertData?['phone'] ?? '+91 98765 12345';
+    final distance = widget.alertData?['distance'] ?? '420m away';
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
@@ -15,21 +111,42 @@ class VolunteerTrackingScreen extends StatelessWidget {
         child: Container(
           color: const Color(0xFFE50914),
           child: SafeArea(
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                const Text(
-                  'Responding to SOS',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                    onPressed: () => Navigator.pop(context),
                   ),
-                ),
-              ],
+                  const Text(
+                    'Responding to SOS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Earning Confirmation Chip
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Earn ₹$amount',
+                      style: const TextStyle(
+                        color: Color(0xFFB50710),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
             ),
           ),
         ),
@@ -49,30 +166,68 @@ class VolunteerTrackingScreen extends StatelessWidget {
                   ),
                 ),
 
-                // Floating ETA Badge
+                // Floating Status & Turn-by-Turn Card
                 Positioned(
                   top: 16,
                   left: 16,
+                  right: 16,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: const Text(
-                      'ETA 3 min \u2022 420m away',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _isArrived ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _isArrived ? Icons.check_circle_rounded : Icons.navigation_rounded,
+                            color: _isArrived ? AppColors.safeGreen : const Color(0xFFE50914),
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _isArrived
+                                    ? 'You Have Arrived on Scene'
+                                    : (_isNavigating ? 'In 150m turn right onto Main Ave' : 'ETA 3 min • $distance'),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _isArrived ? 'Ensure victim safety & calm presence' : address,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.textSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -80,7 +235,7 @@ class VolunteerTrackingScreen extends StatelessWidget {
             ),
           ),
 
-          // Bottom Sheet: Victim Info, Checklist, Actions
+          // Bottom Sheet: Victim Info, Earning, Checklist, Actions
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -114,26 +269,26 @@ class VolunteerTrackingScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
-                  // Victim Card: Avatar + Name + Active badge
+                  // Victim Card: Avatar + Name + Earning Confirmed
                   Row(
                     children: [
                       // Avatar
                       Container(
-                        width: 44,
-                        height: 44,
+                        width: 48,
+                        height: 48,
                         decoration: const BoxDecoration(
                           color: Color(0xFFFFCCD9),
                           shape: BoxShape.circle,
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
-                            'S',
-                            style: TextStyle(
+                            victimName.isNotEmpty ? victimName[0] : 'S',
+                            style: const TextStyle(
                               color: Color(0xFFFF2D8D),
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
@@ -141,23 +296,23 @@ class VolunteerTrackingScreen extends StatelessWidget {
                       const SizedBox(width: 12),
 
                       // Name & Details
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Sneha K.',
-                              style: TextStyle(
-                                fontSize: 16,
+                              victimName,
+                              style: const TextStyle(
+                                fontSize: 16.5,
                                 fontWeight: FontWeight.w800,
                                 color: AppColors.textPrimary,
                               ),
                             ),
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             Text(
-                              'Manual SOS \u2022 Andheri West',
-                              style: TextStyle(
-                                fontSize: 12.5,
+                              '$alertType • $distance',
+                              style: const TextStyle(
+                                fontSize: 12,
                                 color: Color(0xFF757575),
                                 fontWeight: FontWeight.w500,
                               ),
@@ -166,171 +321,151 @@ class VolunteerTrackingScreen extends StatelessWidget {
                         ),
                       ),
 
-                      // Active Badge
+                      // Earning Amount Tag
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFEBEE),
-                          borderRadius: BorderRadius.circular(16),
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFC8E6C9)),
                         ),
-                        child: const Row(
-                          children: [
-                            Text(
-                              '\u25CF',
-                              style: TextStyle(
-                                color: Color(0xFFE51C23),
-                                fontSize: 10,
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Active',
-                              style: TextStyle(
-                                color: Color(0xFFE51C23),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          '+₹$amount',
+                          style: const TextStyle(
+                            color: Color(0xFF2E7D32),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
 
-                  // While Responding Guidance Card
+                  const SizedBox(height: 14),
+
+                  // Earning & Payment Confirmation Subtext
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF0F5),
-                      borderRadius: BorderRadius.circular(20),
+                      color: const Color(0xFFFFF7E6),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFFE0B2)),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        const Text(
-                          'WHILE RESPONDING',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFFFF2D8D),
-                            letterSpacing: 0.8,
+                        const Icon(Icons.verified_rounded, color: Color(0xFFE65100), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Payment Verified: ₹$amount Paid • Ref: ${widget.alertData?['paymentId'] ?? widget.alertData?['transactionId'] ?? 'SAF-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}'}',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFE65100),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        _buildCheckItem(
-                          icon: Icons.check,
-                          iconColor: const Color(0xFF10B981),
-                          text: 'Call police / helpline as you head there',
-                          textColor: const Color(0xFF0F5132),
-                        ),
-                        const SizedBox(height: 8),
-
-                        _buildCheckItem(
-                          icon: Icons.check,
-                          iconColor: const Color(0xFF10B981),
-                          text: 'Stay visible and be a calm presence',
-                          textColor: const Color(0xFF0F5132),
-                        ),
-                        const SizedBox(height: 8),
-
-                        _buildCheckItem(
-                          icon: Icons.close_rounded,
-                          iconColor: const Color(0xFFE51C23),
-                          text: 'Don\u2019t attempt physical confrontation',
-                          textColor: const Color(0xFF842029),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
 
-                  // Action Buttons Row: Call Police & Mark Arrived
+
+                  const SizedBox(height: 14),
+
+                  // Quick Action Buttons Row: Navigation & Call Woman
                   Row(
                     children: [
-                      // Call Police
+                      // Navigation Button
                       Expanded(
-                        flex: 4,
                         child: SizedBox(
-                          height: 52,
-                          child: OutlinedButton(
+                          height: 48,
+                          child: OutlinedButton.icon(
                             onPressed: () {
+                              setState(() => _isNavigating = !_isNavigating);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Dialing Emergency Helpline 112...'),
-                                  backgroundColor: AppColors.sosRed,
+                                SnackBar(
+                                  content: Text(_isNavigating ? 'Turn-by-turn navigation started' : 'Navigation paused'),
+                                  backgroundColor: AppColors.primary,
+                                  duration: const Duration(seconds: 1),
                                 ),
                               );
                             },
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFFFF6495), width: 1.5),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(26),
-                              ),
-                              backgroundColor: Colors.white,
+                            icon: Icon(
+                              _isNavigating ? Icons.navigation_rounded : Icons.directions_outlined,
+                              color: AppColors.primary,
+                              size: 18,
                             ),
-                            child: const Text(
-                              'Call Police',
-                              style: TextStyle(
-                                color: Color(0xFFFF2D8D),
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
+                            label: Text(
+                              _isNavigating ? 'Navigating' : 'Navigation',
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
                               ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.primary, width: 1.4),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
 
-                      // Mark Arrived
+                      // Call Woman Button
                       Expanded(
-                        flex: 6,
-                        child: Container(
-                          height: 52,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF2D8D), Color(0xFFFF528E)],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                            ),
-                            borderRadius: BorderRadius.circular(26),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFF2D8D).withValues(alpha: 0.35),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              VolunteerService().logSosResponse(
-                                victimName: 'Sneha K.',
-                                location: 'Andheri West',
-                              );
-                              Navigator.pushReplacementNamed(context, AppRoutes.volunteerResolved);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(26),
-                              ),
-                            ),
-                            child: const Text(
-                              'Mark Arrived',
+                        child: SizedBox(
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _callWoman(victimName, phone),
+                            icon: const Icon(Icons.call_rounded, color: Colors.white, size: 18),
+                            label: const Text(
+                              'Call Woman',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 15.5,
+                                fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
                               ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.safeGreen,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                             ),
                           ),
                         ),
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Step 4: Arrived / Resolved Primary Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!_isArrived) {
+                          _handleMarkArrived();
+                        } else {
+                          _handleMarkResolved(victimName, address, amount);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isArrived ? AppColors.safeGreen : const Color(0xFFE50914),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+                        elevation: 4,
+                      ),
+                      child: Text(
+                        _isArrived ? 'Mark Resolved (Woman Safe) & Earn ₹$amount' : 'Mark "Arrived" at Scene',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -338,31 +473,6 @@ class VolunteerTrackingScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildCheckItem({
-    required IconData icon,
-    required Color iconColor,
-    required String text,
-    required Color textColor,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: iconColor, size: 16),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: textColor,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -395,7 +505,6 @@ class _MapRoutePainter extends CustomPainter {
       ..strokeWidth = 4.0
       ..style = PaintingStyle.stroke;
 
-    // Approximate dashed bezier curve
     const segments = 28;
     for (int i = 0; i < segments; i += 2) {
       final t1 = i / segments;
@@ -408,26 +517,11 @@ class _MapRoutePainter extends CustomPainter {
     }
 
     // 4. Start Point (Volunteer Locator Marker)
-    // Outer translucent blue circle
-    canvas.drawCircle(
-      start,
-      14,
-      Paint()..color = const Color(0x331976D2),
-    );
-    // Middle white circle
-    canvas.drawCircle(
-      start,
-      8,
-      Paint()..color = Colors.white,
-    );
-    // Inner solid blue circle
-    canvas.drawCircle(
-      start,
-      5,
-      Paint()..color = const Color(0xFF1976D2),
-    );
+    canvas.drawCircle(start, 14, Paint()..color = const Color(0x331976D2));
+    canvas.drawCircle(start, 8, Paint()..color = Colors.white);
+    canvas.drawCircle(start, 5, Paint()..color = const Color(0xFF1976D2));
 
-    // 5. Destination Marker (Red Pin)
+    // 5. Destination Marker (Woman's Red Pin)
     _drawRedPin(canvas, end);
   }
 
@@ -438,11 +532,9 @@ class _MapRoutePainter extends CustomPainter {
   }
 
   void _drawRedPin(Canvas canvas, Offset position) {
-    // Red pin head
     final pinPaint = Paint()..color = const Color(0xFFE51C23);
     canvas.drawCircle(Offset(position.dx, position.dy - 6), 9, pinPaint);
 
-    // Pin pointer triangle
     final path = Path()
       ..moveTo(position.dx - 8, position.dy - 6)
       ..lineTo(position.dx + 8, position.dy - 6)
@@ -450,7 +542,6 @@ class _MapRoutePainter extends CustomPainter {
       ..close();
     canvas.drawPath(path, pinPaint);
 
-    // Pin white inner dot
     canvas.drawCircle(Offset(position.dx, position.dy - 6), 3.5, Paint()..color = Colors.white);
   }
 

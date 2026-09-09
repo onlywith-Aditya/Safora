@@ -18,6 +18,8 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
   final VolunteerService _volunteerService = VolunteerService();
   Map<String, dynamic>? _volunteerData;
   List<Map<String, dynamic>> _historyList = [];
+  Map<String, dynamic> _earnings = {'total': 3500, 'pending': 0};
+  List<Map<String, dynamic>> _transactionsList = [];
   bool _isLoading = true;
 
   @override
@@ -33,16 +35,38 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
   Future<void> _loadAllData() async {
     final data = await _volunteerService.loadVolunteerProfile();
     final history = await _volunteerService.getVolunteerHistory();
+    final earnings = await _volunteerService.getVolunteerEarnings();
+    final txns = await _volunteerService.getEarningsTransactions();
     final duty = data['dutyStatus'] == 'on_duty';
     if (mounted) {
       setState(() {
         _volunteerData = data;
         _historyList = history;
+        _earnings = earnings;
+        _transactionsList = txns;
         _isOnDuty = duty;
         _isLoading = false;
       });
     }
   }
+
+  Future<void> _verifyAndSettleEarnings() async {
+    final updated = await _volunteerService.settlePendingEarnings();
+    final txns = await _volunteerService.getEarningsTransactions();
+    setState(() {
+      _earnings = updated;
+      _transactionsList = txns;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verification successful! Pending earnings moved to Total Balance.'),
+          backgroundColor: AppColors.safeGreen,
+        ),
+      );
+    }
+  }
+
 
   @override
   void dispose() {
@@ -606,7 +630,122 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                // Card: Volunteer Earnings Card (Step 5: Earn Money)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF14532D), Color(0xFF166534)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF166534).withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Volunteer Earnings',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                (_earnings['pending'] ?? 0) > 0 ? '₹${_earnings['pending']} Pending' : 'All Settled',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Total Balance',
+                                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₹${_earnings['total'] ?? 3500}',
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if ((_earnings['pending'] ?? 0) > 0) ...[
+                              ElevatedButton(
+                                onPressed: _verifyAndSettleEarnings,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF22C55E),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                ),
+                                child: const Text(
+                                  'Verify & Settle',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                            ] else ...[
+                              TextButton.icon(
+                                onPressed: () => setState(() => _selectedTabIndex = 1),
+                                icon: const Icon(Icons.history_rounded, color: Colors.white70, size: 16),
+                                label: const Text(
+                                  'Transactions',
+                                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
+
 
                 // Section Title: Coverage Area
                 const Padding(
@@ -764,8 +903,11 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
     );
   }
 
-  // ================= TAB 1: HISTORY VIEW =================
+  // ================= TAB 1: EARNINGS & HISTORY VIEW =================
   Widget _buildHistoryTab() {
+    final pendingAmount = (_earnings['pending'] as num?)?.toInt() ?? 0;
+    final totalAmount = (_earnings['total'] as num?)?.toInt() ?? 3500;
+
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -784,7 +926,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Response History',
+                      'Earnings & History',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -793,7 +935,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Past accepted & resolved emergency alerts',
+                      'Rescue payouts & verified transaction log',
                       style: TextStyle(fontSize: 12.5, color: Color(0xFF757575)),
                     ),
                   ],
@@ -805,7 +947,7 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    '${_historyList.length} Resolved',
+                    '${_historyList.length} Rescues',
                     style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -817,153 +959,321 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
             ),
           ),
 
-          // History List
+          // Scrollable Content
           Expanded(
-            child: _historyList.isEmpty
-                ? const Center(
-                    child: Text('No previous responses yet', style: TextStyle(color: AppColors.textMuted)),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. Earnings Overview Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF14532D), Color(0xFF166534)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF166534).withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Total Settled Balance',
+                              style: TextStyle(fontSize: 13, color: Colors.white70, fontWeight: FontWeight.w600),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.account_balance_rounded, color: Colors.white, size: 12),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Bank Linked',
+                                    style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '₹$totalAmount',
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -0.6,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(height: 1, color: Color(0xFF22C55E)),
+                        const SizedBox(height: 14),
+
+                        // Pending Earnings Row
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Pending Verification',
+                                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₹$pendingAmount',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF86EFAC),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (pendingAmount > 0) ...[
+                              ElevatedButton.icon(
+                                onPressed: _verifyAndSettleEarnings,
+                                icon: const Icon(Icons.verified_rounded, size: 16),
+                                label: const Text('Verify & Settle'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF22C55E),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // 2. Section: Transaction History
+                  const Text(
+                    'Transaction History',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  if (_transactionsList.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Center(child: Text('No transaction history yet', style: TextStyle(color: AppColors.textMuted))),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _transactionsList.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final txn = _transactionsList[index];
+                        final amount = txn['amount'] ?? 500;
+                        final victim = txn['victimName'] ?? 'Emergency Rescue';
+                        final date = txn['date'] ?? 'Recently';
+                        final type = txn['type'] ?? 'Volunteer Protection';
+                        final isPending = txn['isPending'] == true;
+
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: isPending ? const Color(0xFFFFF7E6) : const Color(0xFFE8F5E9),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  isPending ? Icons.hourglass_top_rounded : Icons.arrow_downward_rounded,
+                                  color: isPending ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Help to $victim',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '$type • $date',
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '+₹$amount',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      color: isPending ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: isPending ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      isPending ? 'Pending' : 'Verified',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: isPending ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                  const SizedBox(height: 24),
+
+                  // 3. Section: Detailed Rescue Logs
+                  const Text(
+                    'Rescue Incident Log',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
                     itemCount: _historyList.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 12),
+                    separatorBuilder: (context, index) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final item = _historyList[index];
                       final victimName = item['victimName'] ?? 'Victim';
                       final location = item['location'] ?? 'Nearby';
                       final alertType = item['alertType'] ?? 'Emergency';
                       final time = item['timestamp'] ?? 'Recently';
-                      final responseTime = item['responseTime'] ?? '3 mins';
-                      final distance = item['distance'] ?? '420m';
+                      final earning = item['earning'] ?? '₹500';
 
                       return Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFF0F0F0)),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            // Top Row: Victim Name & Resolved Badge
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFFFE3EC),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          victimName.isNotEmpty ? victimName[0] : 'V',
-                                          style: const TextStyle(
-                                            color: Color(0xFFFF2D8D),
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          victimName,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        Text(
-                                          alertType,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xFFE51C23),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE8F5E9),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32), size: 14),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Safe',
-                                        style: TextStyle(
-                                          color: Color(0xFF2E7D32),
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFFE3EC),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  victimName.isNotEmpty ? victimName[0] : 'V',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFF2D8D),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
-                            const SizedBox(height: 12),
-                            const Divider(height: 1, color: Color(0xFFF2F2F2)),
-                            const SizedBox(height: 12),
-
-                            // Location & Stats
-                            Row(
-                              children: [
-                                const Icon(Icons.location_on_outlined, color: Color(0xFF757575), size: 16),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    location,
-                                    style: const TextStyle(fontSize: 12.5, color: Color(0xFF555B62)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    victimName,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Text(
+                                    '$location • $alertType',
+                                    style: const TextStyle(fontSize: 11.5, color: Color(0xFF757575)),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 8),
-
-                            // Meta Row: Time, Response Duration, Distance
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  time,
-                                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF9E9E9E)),
+                                  earning,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF2E7D32),
+                                  ),
                                 ),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.timer_outlined, size: 13, color: Color(0xFF9E9E9E)),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                      'ETA $responseTime ($distance)',
-                                      style: const TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF555B62),
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  time,
+                                  style: const TextStyle(fontSize: 10.5, color: Color(0xFF9E9E9E)),
                                 ),
                               ],
                             ),
@@ -972,11 +1282,15 @@ class _VolunteerHomeScreenState extends State<VolunteerHomeScreen> with SingleTi
                       );
                     },
                   ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+
 
   // ================= TAB 2: PROFILE VIEW =================
   Widget _buildProfileTab() {
