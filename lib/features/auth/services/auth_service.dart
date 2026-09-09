@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/local_storage_service.dart';
 
 class AuthResult {
   final bool isSuccess;
@@ -23,6 +24,7 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final LocalStorageService _storage = LocalStorageService();
 
   static const String _prefUserKey = 'safora_cached_user';
 
@@ -39,6 +41,7 @@ class AuthService {
       final cleanMap = Map<String, dynamic>.from(userData);
       cleanMap.removeWhere((key, value) => value is FieldValue);
       await prefs.setString(_prefUserKey, jsonEncode(cleanMap));
+      await _storage.saveUserData(cleanMap);
     } catch (e) {
       debugPrint('Error saving locally: $e');
     }
@@ -46,6 +49,9 @@ class AuthService {
 
   Future<Map<String, dynamic>?> getUserLocally() async {
     try {
+      final local = await _storage.getUserData();
+      if (local != null) return local;
+
       final prefs = await SharedPreferences.getInstance();
       final userJson = prefs.getString(_prefUserKey);
       if (userJson != null && userJson.isNotEmpty) {
@@ -61,6 +67,7 @@ class AuthService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_prefUserKey);
+      await _storage.clearAll();
     } catch (e) {
       debugPrint('Error clearing local: $e');
     }
@@ -71,21 +78,17 @@ class AuthService {
   // ============================================================
   Future<bool> tryAutoLogin() async {
     try {
-      final user = _auth.currentUser;
-      if (user != null) {
-        final localData = await getUserLocally();
-        if (localData != null && localData['uid'] == user.uid) {
-          _currentUser = localData;
-        } else {
-          _setDefaultUserData(user.uid, user.email ?? '');
-          await saveUserLocally(_currentUser!);
-        }
+      // 1. Check local storage
+      final localUser = await getUserLocally();
+      if (localUser != null) {
+        _currentUser = localUser;
         return true;
       }
-      
-      final cachedUser = await getUserLocally();
-      if (cachedUser != null) {
-        _currentUser = cachedUser;
+
+      // 2. Check Firebase auth session
+      final user = _auth.currentUser;
+      if (user != null) {
+        await fetchUserData(user.uid, email: user.email);
         return true;
       }
     } catch (e) {
@@ -221,7 +224,7 @@ class AuthService {
   }
 
   // ============================================================
-  // DEFAULT USER DATA
+  // FETCH / DEFAULT USER DATA
   // ============================================================
   void _setDefaultUserData(String uid, String email) {
     final defaultName = email.split('@').first;
@@ -254,6 +257,26 @@ class AuthService {
         'totalFakeCalls': 0,
       },
     };
+  }
+
+  Future<void> fetchUserData(String uid, {String? email}) async {
+    final localData = await getUserLocally();
+    if (localData != null) {
+      _currentUser = localData;
+      return;
+    }
+
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        _currentUser = doc.data();
+        await saveUserLocally(_currentUser!);
+        return;
+      }
+    } catch (_) {}
+
+    _setDefaultUserData(uid, email ?? 'user@safora.app');
+    await saveUserLocally(_currentUser!);
   }
 
   // ============================================================

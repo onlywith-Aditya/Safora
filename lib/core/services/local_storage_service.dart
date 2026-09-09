@@ -12,6 +12,9 @@ class LocalStorageService {
   static const String _keyIsLoggedIn = 'safora_is_logged_in';
   static const String _keyVolunteerDuty = 'safora_volunteer_duty';
   static const String _keyVolunteerHistory = 'safora_volunteer_history';
+  static const String _keyActiveEmergency = 'safora_active_emergency';
+  static const String _keyVolunteerEarnings = 'safora_volunteer_earnings';
+  static const String _keyEarningsTransactions = 'safora_earnings_transactions';
 
   // In-memory fallback cache
   final Map<String, dynamic> _memoryCache = {};
@@ -27,7 +30,9 @@ class LocalStorageService {
       await prefs.setString(_keyUser, jsonEncode(data));
       await prefs.setString(_keyRole, 'user');
       await prefs.setBool(_keyIsLoggedIn, true);
-    } catch (_) {}
+    } catch (_) {
+      // Local storage fallback
+    }
   }
 
   /// Get Regular User Data from Device
@@ -59,7 +64,9 @@ class LocalStorageService {
       await prefs.setString(_keyVolunteer, jsonEncode(data));
       await prefs.setString(_keyRole, 'volunteer');
       await prefs.setBool(_keyIsLoggedIn, true);
-    } catch (_) {}
+    } catch (_) {
+      // Local storage fallback
+    }
   }
 
   /// Get Volunteer Data from Device
@@ -126,6 +133,86 @@ class LocalStorageService {
         final decoded = jsonDecode(historyJson) as List;
         final list = decoded.map((item) => Map<String, dynamic>.from(item as Map)).toList();
         _memoryCache[_keyVolunteerHistory] = list;
+        return list;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Save Active Emergency Alert
+  Future<void> saveActiveEmergency(Map<String, dynamic> emergencyData) async {
+    _memoryCache[_keyActiveEmergency] = emergencyData;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyActiveEmergency, jsonEncode(emergencyData));
+    } catch (_) {}
+  }
+
+  /// Get Active Emergency Alert
+  Future<Map<String, dynamic>?> getActiveEmergency() async {
+    if (_memoryCache.containsKey(_keyActiveEmergency)) {
+      return Map<String, dynamic>.from(_memoryCache[_keyActiveEmergency] as Map);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final emergencyJson = prefs.getString(_keyActiveEmergency);
+      if (emergencyJson != null) {
+        final decoded = jsonDecode(emergencyJson) as Map<String, dynamic>;
+        _memoryCache[_keyActiveEmergency] = decoded;
+        return decoded;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Save Volunteer Earnings Map { 'total': 3500, 'pending': 500 }
+  Future<void> saveVolunteerEarnings(Map<String, dynamic> earnings) async {
+    _memoryCache[_keyVolunteerEarnings] = earnings;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyVolunteerEarnings, jsonEncode(earnings));
+    } catch (_) {}
+  }
+
+  /// Get Volunteer Earnings Map
+  Future<Map<String, dynamic>> getVolunteerEarnings() async {
+    if (_memoryCache.containsKey(_keyVolunteerEarnings)) {
+      return Map<String, dynamic>.from(_memoryCache[_keyVolunteerEarnings] as Map);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final earningsJson = prefs.getString(_keyVolunteerEarnings);
+      if (earningsJson != null) {
+        final decoded = jsonDecode(earningsJson) as Map<String, dynamic>;
+        _memoryCache[_keyVolunteerEarnings] = decoded;
+        return decoded;
+      }
+    } catch (_) {}
+    return {'total': 3500, 'pending': 0};
+  }
+
+  /// Save Earnings Transactions List
+  Future<void> saveEarningsTransactions(List<Map<String, dynamic>> txns) async {
+    _memoryCache[_keyEarningsTransactions] = txns;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyEarningsTransactions, jsonEncode(txns));
+    } catch (_) {}
+  }
+
+  /// Get Earnings Transactions List
+  Future<List<Map<String, dynamic>>> getEarningsTransactions() async {
+    if (_memoryCache.containsKey(_keyEarningsTransactions)) {
+      final list = _memoryCache[_keyEarningsTransactions] as List;
+      return list.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final txnsJson = prefs.getString(_keyEarningsTransactions);
+      if (txnsJson != null) {
+        final decoded = jsonDecode(txnsJson) as List;
+        final list = decoded.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        _memoryCache[_keyEarningsTransactions] = list;
         return list;
       }
     } catch (_) {}

@@ -18,4 +18,6 @@ class AppRoutes {
   static const String sos = '/sos';
   static const String safeRoute = '/safe_route';
   static const String fakeCall = '/fake_call';
+  static const String payment = '/payment';
+  static const String clientTracking = '/client_tracking';
 }

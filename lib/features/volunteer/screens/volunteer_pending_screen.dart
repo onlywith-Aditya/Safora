@@ -16,6 +16,7 @@ class VolunteerPendingScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
+              // Amber Circle with Clock Icon
               Container(
                 width: 88,
                 height: 88,
@@ -33,6 +34,7 @@ class VolunteerPendingScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
 
+              // Title
               const Text(
                 'Application Submitted',
                 textAlign: TextAlign.center,
@@ -45,6 +47,7 @@ class VolunteerPendingScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
+              // Subtitle
               const Text(
                 'Your details are being reviewed by our admin team. This typically takes under 24 hours.',
                 textAlign: TextAlign.center,
@@ -57,6 +60,7 @@ class VolunteerPendingScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
+              // Status Pill
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
@@ -89,6 +93,7 @@ class VolunteerPendingScreen extends StatelessWidget {
 
               const Spacer(),
 
+              // Button 1: Preview Volunteer Home (Demo)
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -115,6 +120,7 @@ class VolunteerPendingScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
 
+              // Button 2: Back to Intro
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -136,8 +142,8 @@ class VolunteerPendingScreen extends StatelessWidget {
                     'Back to Intro',
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFFF2D8D),
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF4A4A4A),
                     ),
                   ),
                 ),

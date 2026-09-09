@@ -225,9 +225,8 @@ class VolunteerIntroScreen extends StatelessWidget {
           Container(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFEEF3),
-              shape: BoxShape.circle,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFEEF3),
             ),
             child: Icon(icon, color: const Color(0xFFFF2B75), size: 22),
           ),

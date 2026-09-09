@@ -4,6 +4,7 @@ import '../../../routes/app_routes.dart';
 import '../../auth/services/auth_service.dart';
 import '../../contacts/screens/contacts_screen.dart';
 import '../../profile/screens/profile_screen.dart';
+import '../../sos/widgets/help_type_bottom_sheet.dart';
 import 'alerts_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -39,8 +40,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _triggerSos() {
-    Navigator.pushNamed(context, AppRoutes.sos);
+    HelpTypeBottomSheet.show(context);
   }
+
 
   void _triggerVoiceAlert() {
     showModalBottomSheet(

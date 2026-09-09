@@ -29,6 +29,11 @@ class _VolunteerLoginScreenState extends State<VolunteerLoginScreen> {
     super.dispose();
   }
 
+  void _fillDemoVolunteer() {
+    _emailController.text = 'aarav.sharma@nss.org';
+    _passwordController.text = 'password123';
+  }
+
   Future<void> _handleVolunteerLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -92,6 +97,7 @@ class _VolunteerLoginScreenState extends State<VolunteerLoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -115,6 +121,32 @@ class _VolunteerLoginScreenState extends State<VolunteerLoginScreen> {
                             ],
                           ),
                         ),
+                        // Demo quick fill chip
+                        GestureDetector(
+                          onTap: _fillDemoVolunteer,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0FDF4),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFBBF7D0)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.bolt_rounded, color: Color(0xFF16A34A), size: 14),
+                                SizedBox(width: 2),
+                                Text(
+                                  'Demo Login',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF16A34A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -128,7 +160,7 @@ class _VolunteerLoginScreenState extends State<VolunteerLoginScreen> {
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'Log in to respond to community emergency alerts and manage active rescue duty.',
+                      'Log in to respond to community emergency alerts, track distress signals, and manage active rescue duty.',
                       style: TextStyle(
                         fontSize: 13.5,
                         color: AppColors.textSecondary,

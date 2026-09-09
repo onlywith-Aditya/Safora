@@ -97,49 +97,38 @@ class VolunteerService {
           'email': cleanEmail,
           'phone': '+91 98765 43210',
           'idType': 'Aadhaar Card',
-          'affiliation': 'Community Guardian',
-          'institution': 'Safora Network',
+          'affiliation': 'College / Campus (NSS-NCC)',
+          'institution': 'Safora Volunteer Network',
           'role': 'volunteer',
           'isVerified': true,
           'verificationStatus': 'approved',
-          'dutyStatus': 'off_duty',
+          'dutyStatus': 'on_duty',
           'respondedCount': 14,
           'rating': 4.9,
           'coverageRadiusKm': 1.8,
-          'createdAt': DateTime.now().toIso8601String(),
+          'currentLocation': {
+            'latitude': 19.1136,
+            'longitude': 72.8697,
+            'area': 'Andheri West, Mumbai',
+          },
         };
+
         _currentVolunteer = defaultVol;
         await _storage.saveVolunteerData(defaultVol);
-
-        try {
-          await _firestore.collection('volunteers').doc(user.uid).set(
-            defaultVol,
-            SetOptions(merge: true),
-          );
-        } catch (_) {}
-
         return AuthResult(isSuccess: true);
       }
 
-      return AuthResult(isSuccess: false, errorMessage: 'Volunteer login failed', isUserNotFound: true);
+      return AuthResult(isSuccess: false, errorMessage: 'Login failed', isUserNotFound: true);
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
-        return AuthResult(
-          isSuccess: false,
-          errorMessage: 'No volunteer account found with this email. Please register below.',
-          isUserNotFound: true,
-        );
+        return AuthResult(isSuccess: false, errorMessage: 'Volunteer account not found. Please join as a volunteer.', isUserNotFound: true);
       }
       if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        return AuthResult(
-          isSuccess: false,
-          errorMessage: 'Incorrect password. Please verify and try again.',
-          isUserNotFound: true,
-        );
+        return AuthResult(isSuccess: false, errorMessage: 'Incorrect password', isUserNotFound: true);
       }
-      return AuthResult(isSuccess: false, errorMessage: e.message ?? 'Login failed', isUserNotFound: true);
+      return AuthResult(isSuccess: false, errorMessage: e.message ?? 'Volunteer login failed', isUserNotFound: true);
     } catch (e) {
-      return AuthResult(isSuccess: false, errorMessage: 'Volunteer login error: $e', isUserNotFound: true);
+      return AuthResult(isSuccess: false, errorMessage: 'Login error: $e', isUserNotFound: true);
     }
   }
 
@@ -215,12 +204,14 @@ class VolunteerService {
     return AuthResult(isSuccess: true);
   }
 
-  /// Load volunteer profile
-  Future<Map<String, dynamic>> loadVolunteerProfile() async {
-    final localData = await _storage.getVolunteerData();
-    if (localData != null) {
-      _currentVolunteer = localData;
-      return localData;
+  /// Fetch volunteer data from local storage or Firestore
+  Future<Map<String, dynamic>> loadVolunteerProfile({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final localData = await _storage.getVolunteerData();
+      if (localData != null) {
+        _currentVolunteer = localData;
+        return localData;
+      }
     }
 
     final user = _auth.currentUser;
@@ -228,61 +219,65 @@ class VolunteerService {
       try {
         final doc = await _firestore.collection('volunteers').doc(user.uid).get();
         if (doc.exists && doc.data() != null) {
-          _currentVolunteer = doc.data();
+          _currentVolunteer = Map<String, dynamic>.from(doc.data()!);
+          _currentVolunteer!['uid'] = user.uid;
           await _storage.saveVolunteerData(_currentVolunteer!);
           return _currentVolunteer!;
         }
-      } catch (_) {}
+
+        // Query by email
+        if (user.email != null && user.email!.isNotEmpty) {
+          final query = await _firestore
+              .collection('volunteers')
+              .where('email', isEqualTo: user.email!.trim())
+              .limit(1)
+              .get();
+          if (query.docs.isNotEmpty) {
+            _currentVolunteer = Map<String, dynamic>.from(query.docs.first.data());
+            _currentVolunteer!['uid'] = query.docs.first.id;
+            await _storage.saveVolunteerData(_currentVolunteer!);
+            return _currentVolunteer!;
+          }
+        }
+      } catch (e) {
+        debugPrint('Firestore volunteer fetch error: $e');
+      }
+    }
+
+    final localData = await _storage.getVolunteerData();
+    if (localData != null) {
+      _currentVolunteer = localData;
+      return localData;
     }
 
     _currentVolunteer = {
-      'uid': 'vol_demo_01',
-      'fullName': 'Arjun Mehta',
-      'name': 'Arjun Mehta',
-      'email': 'arjun.volunteer@safora.app',
-      'phone': '+91 98765 43210',
+      'uid': user?.uid ?? 'vol_mock_101',
+      'fullName': 'Aarav Sharma',
+      'name': 'Aarav Sharma',
+      'email': user?.email ?? 'aarav.sharma@nss.org',
+      'phone': '+91 98201 12345',
       'idType': 'Aadhaar Card',
-      'idPhoto': 'govt_id_arjun.jpg',
       'affiliation': 'College / Campus (NSS-NCC)',
-      'institution': "St. Xavier's College",
+      'institution': 'St. Xavier\'s College, Mumbai',
       'role': 'volunteer',
       'isVerified': true,
       'verificationStatus': 'approved',
-      'dutyStatus': 'off_duty',
+      'dutyStatus': 'on_duty',
       'respondedCount': 14,
       'rating': 4.9,
       'coverageRadiusKm': 1.8,
+      'currentLocation': {
+        'latitude': 19.1136,
+        'longitude': 72.8697,
+        'area': 'Andheri West, Mumbai',
+      },
     };
     await _storage.saveVolunteerData(_currentVolunteer!);
     return _currentVolunteer!;
   }
 
-  /// Update Volunteer Profile Details
-  Future<void> updateVolunteerProfile(Map<String, dynamic> updatedFields) async {
-    if (_currentVolunteer == null) {
-      await loadVolunteerProfile();
-    }
-
-    _currentVolunteer!.addAll(updatedFields);
-    _currentVolunteer!['updatedAt'] = DateTime.now().toIso8601String();
-
-    await _storage.saveVolunteerData(_currentVolunteer!);
-
-    final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid;
-    if (uid != null) {
-      try {
-        final data = Map<String, dynamic>.from(updatedFields);
-        data['updatedAt'] = FieldValue.serverTimestamp();
-        await _firestore.collection('volunteers').doc(uid).set(
-          data,
-          SetOptions(merge: true),
-        );
-      } catch (_) {}
-    }
-  }
-
-  /// Update Duty Status
-  Future<void> updateDutyStatus(bool isOnDuty) async {
+  /// Toggle Duty Status (on_duty / off_duty)
+  Future<bool> toggleDutyStatus(bool isOnDuty) async {
     await _storage.setVolunteerDuty(isOnDuty);
 
     if (_currentVolunteer != null) {
@@ -293,216 +288,306 @@ class VolunteerService {
     final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid;
     if (uid != null) {
       try {
-        await _firestore.collection('volunteers').doc(uid).set(
-          {
-            'dutyStatus': isOnDuty ? 'on_duty' : 'off_duty',
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
+        await _firestore.collection('volunteers').doc(uid).set({
+          'dutyStatus': isOnDuty ? 'on_duty' : 'off_duty',
+          'isAvailable': isOnDuty,
+          'lastDutyToggle': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       } catch (_) {}
     }
+    return isOnDuty;
   }
 
-  /// Stream of all active SOS alerts sent by females from user / emergency sections
-  Stream<List<Map<String, dynamic>>> getActiveFemaleSosAlertsStream() {
+  /// Get Duty Status
+  Future<bool> getDutyStatus() async {
+    return await _storage.getVolunteerDuty();
+  }
+
+  /// Real-time stream of incoming active alerts within radius
+  Stream<List<Map<String, dynamic>>> getIncomingAlertsStream() {
     try {
       return _firestore
-          .collection('sos_alerts')
-          .orderBy('createdAt', descending: true)
-          .limit(25)
+          .collection('emergency_alerts')
+          .where('status', isEqualTo: 'active')
           .snapshots()
           .map((snapshot) {
-        if (snapshot.docs.isEmpty) {
-          return _getFallbackSosAlerts();
-        }
         return snapshot.docs.map((doc) {
           final data = doc.data();
           data['id'] = doc.id;
           return data;
         }).toList();
-      }).handleError((e) {
-        debugPrint('SOS Alerts stream error: $e');
-        return _getFallbackSosAlerts();
       });
     } catch (_) {
-      return Stream.value(_getFallbackSosAlerts());
+      return Stream.value([]);
     }
   }
 
-  List<Map<String, dynamic>> _getFallbackSosAlerts() {
-    return [
-      {
-        'id': 'sos_demo_01',
-        'userId': 'usr_sneha',
-        'userName': 'Sneha Kapoor',
-        'userPhone': '+91 98201 44521',
-        'alertType': 'Manual SOS',
-        'status': 'active',
-        'severity': 'high',
-        'location': {
-          'address': 'Andheri West (Near Metro Pillar 42), Mumbai',
-          'distance': '420m away',
-          'eta': '3 mins',
+  /// Accept SOS Alert
+  Future<bool> acceptSosAlert(String alertId, {int earningAmount = 500, String? paymentId}) async {
+    final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid ?? 'vol_mock';
+    final name = _currentVolunteer?['fullName'] ?? 'Aarav Sharma';
+    final phone = _currentVolunteer?['phone'] ?? '+91 98201 12345';
+
+    try {
+      await _firestore.collection('emergency_alerts').doc(alertId).set({
+        'status': 'accepted',
+        'acceptedBy': {
+          'volunteerId': uid,
+          'volunteerName': name,
+          'volunteerPhone': phone,
+          'acceptedAt': FieldValue.serverTimestamp(),
+          'earningAmount': earningAmount,
+          'paymentId': paymentId ?? 'PAY_SAFE_${DateTime.now().millisecondsSinceEpoch}',
         },
-        'timeAgo': '2 min ago',
-      },
-      {
-        'id': 'sos_demo_02',
-        'userId': 'usr_priya',
-        'userName': 'Priya Sharma',
-        'userPhone': '+91 98765 43210',
-        'alertType': 'One-Tap Emergency',
-        'status': 'active',
-        'severity': 'high',
-        'location': {
-          'address': 'DN Nagar Metro Station, Exit 2',
-          'distance': '650m away',
-          'eta': '5 mins',
+      }, SetOptions(merge: true));
+
+      // Also update in sos_alerts for real-time sync with user screen
+      await _firestore.collection('sos_alerts').doc(alertId).set({
+        'status': 'volunteer_assigned',
+        'assignedVolunteer': {
+          'volunteerId': uid,
+          'name': name,
+          'phone': phone,
+          'eta': '4 mins',
+          'distance': '450m',
+          'acceptedAt': FieldValue.serverTimestamp(),
         },
-        'timeAgo': '5 min ago',
-      },
-      {
-        'id': 'sos_demo_03',
-        'userId': 'usr_ananya',
-        'userName': 'Ananya Roy',
-        'userPhone': '+91 91234 56789',
-        'alertType': 'Safe Route Panic',
-        'status': 'active',
-        'severity': 'medium',
-        'location': {
-          'address': 'Lokhandwala Complex, 4th Cross',
-          'distance': '890m away',
-          'eta': '7 mins',
-        },
-        'timeAgo': '8 min ago',
-      },
-    ];
-  }
+      }, SetOptions(merge: true));
 
-  /// Accept an SOS Alert
-  Future<void> acceptSosAlert(Map<String, dynamic> alert) async {
-    final alertId = alert['id'] as String?;
-    final volunteerName = _currentVolunteer?['name'] ?? 'Arjun Mehta';
-    final volunteerUid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid;
-
-    if (alertId != null && !alertId.startsWith('sos_demo_')) {
-      try {
-        await _firestore.collection('sos_alerts').doc(alertId).update({
-          'status': 'responding',
-          'responderId': volunteerUid,
-          'responderName': volunteerName,
-          'respondedAt': FieldValue.serverTimestamp(),
-        });
-      } catch (_) {}
+      return true;
+    } catch (e) {
+      debugPrint('Accept alert offline mode: $e');
+      return true;
     }
   }
 
-  /// Get Volunteer History list (past accepted emergencies)
-  Future<List<Map<String, dynamic>>> getVolunteerHistory() async {
-    final localHistory = await _storage.getVolunteerHistory();
-    if (localHistory.isNotEmpty) {
-      return localHistory;
-    }
-
-    final defaultHistory = [
-      {
-        'id': 'res_01',
-        'victimName': 'Sneha Kapoor',
-        'location': 'Andheri West (Near Metro Pillar 42)',
-        'alertType': 'Manual SOS',
-        'responseTime': '3 mins',
-        'status': 'Resolved',
-        'timestamp': 'Today, 01:45 AM',
-        'distance': '420m',
-      },
-      {
-        'id': 'res_02',
-        'victimName': 'Pooja Sharma',
-        'location': 'DN Nagar Metro Station, Exit 2',
-        'alertType': 'Emergency Trigger',
-        'responseTime': '4 mins',
-        'status': 'Resolved',
-        'timestamp': 'Yesterday, 09:20 PM',
-        'distance': '650m',
-      },
-      {
-        'id': 'res_03',
-        'victimName': 'Ananya Roy',
-        'location': 'Lokhandwala Complex, 4th Cross',
-        'alertType': 'Safe Walk Assistance',
-        'responseTime': '2 mins',
-        'status': 'Resolved',
-        'timestamp': '05 Sep 2026, 11:15 PM',
-        'distance': '310m',
-      },
-      {
-        'id': 'res_04',
-        'victimName': 'Riya Patel',
-        'location': 'Versova Beach Link Road',
-        'alertType': 'Manual SOS',
-        'responseTime': '5 mins',
-        'status': 'Resolved',
-        'timestamp': '02 Sep 2026, 08:40 PM',
-        'distance': '850m',
-      },
-    ];
-
-    await _storage.saveVolunteerHistory(defaultHistory);
-    return defaultHistory;
+  /// Decline Alert
+  Future<void> declineSosAlert(String alertId) async {
+    try {
+      final uid = _currentVolunteer?['uid'] ?? 'vol_mock';
+      await _firestore.collection('emergency_alerts').doc(alertId).set({
+        'declinedBy': FieldValue.arrayUnion([uid]),
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 
-  /// Log response to an SOS event in Firestore & increment stats & add to history
-  Future<void> logSosResponse({required String victimName, required String location}) async {
-    final currentCount = (_currentVolunteer?['respondedCount'] as int?) ?? 14;
-    final newCount = currentCount + 1;
+  /// Log SOS Response to local storage & Firestore
+  Future<void> logSosResponse({
+    required String victimName,
+    required String location,
+    required String duration,
+    int earnedAmount = 500,
+    String? paymentId,
+  }) async {
+    final history = await _storage.getVolunteerHistory();
+    final txnId = paymentId ?? 'TXN_${DateTime.now().millisecondsSinceEpoch}';
 
-    if (_currentVolunteer != null) {
-      _currentVolunteer!['respondedCount'] = newCount;
-      await _storage.saveVolunteerData(_currentVolunteer!);
-    }
-
-    final history = await getVolunteerHistory();
-    final newEntry = {
-      'id': 'res_${DateTime.now().millisecondsSinceEpoch}',
+    final entry = {
+      'id': 'RESP_${DateTime.now().millisecondsSinceEpoch}',
       'victimName': victimName,
       'location': location,
-      'alertType': 'Manual SOS',
-      'responseTime': '3 mins',
-      'status': 'Resolved',
-      'timestamp': 'Just now',
-      'distance': '420m',
+      'duration': duration,
+      'date': 'Today, ${_formatTime(DateTime.now())}',
+      'status': 'Completed',
+      'amount': earnedAmount,
+      'paymentId': txnId,
+      'timestamp': DateTime.now().toIso8601String(),
     };
-    final updatedHistory = [newEntry, ...history];
-    await _storage.saveVolunteerHistory(updatedHistory);
+
+    history.insert(0, entry);
+    await _storage.saveVolunteerHistory(history);
+
+    // Update Earnings (Step 5: Earn Money)
+    final earnings = await _storage.getVolunteerEarnings();
+    final currentPending = (earnings['pending'] as num?)?.toInt() ?? 0;
+    earnings['pending'] = currentPending + earnedAmount;
+    await _storage.saveVolunteerEarnings(earnings);
+
+    // Add to transaction log
+    final txns = await _storage.getEarningsTransactions();
+    txns.insert(0, {
+      'id': txnId,
+      'title': 'Emergency Protection Response',
+      'victimName': victimName,
+      'date': 'Today, ${_formatTime(DateTime.now())}',
+      'amount': earnedAmount,
+      'status': 'Pending Verification',
+      'paymentId': txnId,
+      'type': 'credit',
+    });
+    await _storage.saveEarningsTransactions(txns);
+
+    // Increment responded count in volunteer profile
+    if (_currentVolunteer != null) {
+      final count = (_currentVolunteer!['respondedCount'] ?? 14) as int;
+      _currentVolunteer!['respondedCount'] = count + 1;
+      await _storage.saveVolunteerData(_currentVolunteer!);
+    }
 
     final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid;
     if (uid != null) {
       try {
-        await _firestore.collection('volunteers').doc(uid).set(
-          {
-            'respondedCount': newCount,
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-
         await _firestore.collection('volunteers').doc(uid).collection('responses').add({
           'victimName': victimName,
           'location': location,
-          'status': 'resolved',
-          'timestamp': FieldValue.serverTimestamp(),
+          'duration': duration,
+          'status': 'Completed',
+          'amount': earnedAmount,
+          'paymentId': txnId,
+          'completedAt': FieldValue.serverTimestamp(),
         });
       } catch (_) {}
     }
   }
 
-  /// Logout Volunteer
-  Future<void> logoutVolunteer() async {
-    try {
-      await _auth.signOut();
-    } catch (_) {}
-    await _storage.clearAll();
-    _currentVolunteer = null;
+  /// Get Volunteer Earnings { 'total': 3500, 'pending': 500 }
+  Future<Map<String, dynamic>> getVolunteerEarnings() async {
+    return await _storage.getVolunteerEarnings();
+  }
+
+  /// Settle Pending Earnings to Total Earnings
+  Future<Map<String, dynamic>> settlePendingEarnings() async {
+    final earnings = await _storage.getVolunteerEarnings();
+    final total = (earnings['total'] as num?)?.toInt() ?? 3500;
+    final pending = (earnings['pending'] as num?)?.toInt() ?? 0;
+
+    if (pending > 0) {
+      earnings['total'] = total + pending;
+      earnings['pending'] = 0;
+      await _storage.saveVolunteerEarnings(earnings);
+
+      // Update transactions
+      final txns = await _storage.getEarningsTransactions();
+      for (var txn in txns) {
+        if (txn['status'] == 'Pending Verification') {
+          txn['status'] = 'Settled & Verified';
+        }
+      }
+      await _storage.saveEarningsTransactions(txns);
+    }
+    return earnings;
+  }
+
+  /// Get Earnings Transactions
+  Future<List<Map<String, dynamic>>> getEarningsTransactions() async {
+    final txns = await _storage.getEarningsTransactions();
+    if (txns.isEmpty) {
+      // Default initial mock transactions
+      return [
+        {
+          'id': 'TXN_982310',
+          'title': 'Volunteer Protection Assistance',
+          'victimName': 'Pooja Deshmukh',
+          'date': 'Yesterday, 9:42 PM',
+          'amount': 500,
+          'status': 'Settled & Verified',
+          'paymentId': 'PAY_SAF_883921',
+          'type': 'credit',
+        },
+        {
+          'id': 'TXN_982104',
+          'title': 'Priority Protection Escort',
+          'victimName': 'Ananya Verma',
+          'date': '3 Sep, 11:15 PM',
+          'amount': 1000,
+          'status': 'Settled & Verified',
+          'paymentId': 'PAY_SAF_774102',
+          'type': 'credit',
+        },
+        {
+          'id': 'TXN_981902',
+          'title': 'Volunteer Protection Assistance',
+          'victimName': 'Ritu Sharma',
+          'date': '28 Aug, 8:20 PM',
+          'amount': 500,
+          'status': 'Settled & Verified',
+          'paymentId': 'PAY_SAF_663201',
+          'type': 'credit',
+        },
+        {
+          'id': 'TXN_981540',
+          'title': 'Priority Protection Escort',
+          'victimName': 'Meera Patel',
+          'date': '22 Aug, 10:05 PM',
+          'amount': 1000,
+          'status': 'Settled & Verified',
+          'paymentId': 'PAY_SAF_552190',
+          'type': 'credit',
+        },
+        {
+          'id': 'TXN_981200',
+          'title': 'Volunteer Protection Assistance',
+          'victimName': 'Neha Gupta',
+          'date': '15 Aug, 7:50 PM',
+          'amount': 500,
+          'status': 'Settled & Verified',
+          'paymentId': 'PAY_SAF_441029',
+          'type': 'credit',
+        },
+      ];
+    }
+    return txns;
+  }
+
+  /// Update Volunteer Profile Details
+  Future<bool> updateVolunteerProfile({
+    required String name,
+    required String phone,
+    required String institution,
+    required String affiliation,
+  }) async {
+    final updates = {
+      'name': name.trim(),
+      'fullName': name.trim(),
+      'phone': phone.trim(),
+      'institution': institution.trim(),
+      'affiliation': affiliation.trim(),
+    };
+
+    if (_currentVolunteer != null) {
+      _currentVolunteer!.addAll(updates);
+      await _storage.saveVolunteerData(_currentVolunteer!);
+    }
+
+    final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid;
+    if (uid != null) {
+      try {
+        final firestoreUpdates = Map<String, dynamic>.from(updates);
+        firestoreUpdates['updatedAt'] = FieldValue.serverTimestamp();
+        await _firestore.collection('volunteers').doc(uid).set(
+          firestoreUpdates,
+          SetOptions(merge: true),
+        );
+      } catch (_) {}
+    }
+    return true;
+  }
+
+  /// Update volunteer live coordinates
+  Future<void> updateVolunteerLocation({
+    required double latitude,
+    required double longitude,
+    String? area,
+  }) async {
+    final uid = _currentVolunteer?['uid'] ?? _auth.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await _firestore.collection('volunteers').doc(uid).set({
+          'currentLocation': {
+            'latitude': latitude,
+            'longitude': longitude,
+            'area': area ?? 'Mumbai',
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        }, SetOptions(merge: true));
+      } catch (_) {}
+    }
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $ampm';
   }
 }

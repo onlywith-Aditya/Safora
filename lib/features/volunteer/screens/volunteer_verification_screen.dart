@@ -100,6 +100,7 @@ class _VolunteerVerificationScreenState extends State<VolunteerVerificationScree
       'verificationStatus': 'pending',
     };
 
+    // Save to Firestore 'volunteers' collection and Local Device Storage
     final result = await VolunteerService().registerVolunteer(volunteerData);
 
     if (!mounted) return;

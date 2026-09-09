@@ -11,7 +11,7 @@ class RoleSelectionScreen extends StatefulWidget {
 }
 
 class _RoleSelectionScreenState extends State<RoleSelectionScreen>
-    with SingleTickerProviderStateMixin {
+  with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -90,19 +90,19 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                 ],
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
               const Text(
                 'Women Safety & Guardian Network',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
                 ),
               ),
 
-              const SizedBox(height: 130),
+              const SizedBox(height: 36),
 
               // -----------------------------------------------------------
               // 1. BIG EMERGENCY BUTTON (Centerpiece)
@@ -111,11 +111,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                 scale: _pulseAnimation,
                 child: GestureDetector(
                   onTap: () {
-                    Navigator.pushNamed(context, AppRoutes.emergencyHome);
+                    Navigator.pushReplacementNamed(context, AppRoutes.home);
                   },
                   child: Container(
-                    width: 180,
-                    height: 180,
+                    width: 190,
+                    height: 190,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       boxShadow: [
@@ -160,7 +160,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                               'EMERGENCY',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 18.5,
+                                fontSize: 19,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.2,
                               ),
@@ -182,7 +182,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               const Text(
                 'Instant Protection • No Login Required for Distress',
                 style: TextStyle(
@@ -192,7 +192,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
                 ),
               ),
 
-              const SizedBox(height: 38),
+              const SizedBox(height: 40),
 
               // -----------------------------------------------------------
               // 2. BUTTON: LOGIN AS USER
@@ -257,7 +257,30 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
 
               const SizedBox(height: 24),
 
-             
+              // New user registration prompt
+              TextButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, AppRoutes.register);
+                },
+                child: RichText(
+                  text: const TextSpan(
+                    text: "Don't have an account? ",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: 'Register Here',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 10),
             ],
           ),
