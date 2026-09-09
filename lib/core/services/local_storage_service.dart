@@ -136,6 +136,34 @@ class LocalStorageService {
     return [];
   }
 
+  static const String _keyActiveEmergency = 'safora_active_emergency';
+
+  /// Save Active Emergency Alert
+  Future<void> saveActiveEmergency(Map<String, dynamic> emergencyData) async {
+    _memoryCache[_keyActiveEmergency] = emergencyData;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyActiveEmergency, jsonEncode(emergencyData));
+    } catch (_) {}
+  }
+
+  /// Get Active Emergency Alert
+  Future<Map<String, dynamic>?> getActiveEmergency() async {
+    if (_memoryCache.containsKey(_keyActiveEmergency)) {
+      return Map<String, dynamic>.from(_memoryCache[_keyActiveEmergency] as Map);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final emergencyJson = prefs.getString(_keyActiveEmergency);
+      if (emergencyJson != null) {
+        final decoded = jsonDecode(emergencyJson) as Map<String, dynamic>;
+        _memoryCache[_keyActiveEmergency] = decoded;
+        return decoded;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Clear all saved data on Device
   Future<void> clearAll() async {
     _memoryCache.clear();
@@ -145,3 +173,4 @@ class LocalStorageService {
     } catch (_) {}
   }
 }
+

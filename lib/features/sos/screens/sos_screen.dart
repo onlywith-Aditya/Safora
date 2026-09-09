@@ -196,17 +196,26 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
 
                   const SizedBox(height: 12),
 
-                  // View Safe Route Button
+                  // Request Volunteer Protection Button
                   SizedBox(
                     width: double.infinity,
                     height: 54,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.pushNamed(context, AppRoutes.safeRoute);
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.payment,
+                          arguments: {
+                            'planName': 'Volunteer Protection',
+                            'amount': 500,
+                            'eta': '3-5 mins',
+                            'description': 'Verified volunteer dispatched directly to your location',
+                          },
+                        );
                       },
-                      icon: const Icon(Icons.navigation_rounded, color: Colors.white),
+                      icon: const Icon(Icons.volunteer_activism_rounded, color: Colors.white),
                       label: const Text(
-                        'View Safe Route',
+                        'Dispatch Volunteer (₹500)',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
@@ -219,6 +228,34 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
                           borderRadius: BorderRadius.circular(28),
                         ),
                         elevation: 4,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // View Safe Route Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pushNamed(context, AppRoutes.safeRoute);
+                      },
+                      icon: const Icon(Icons.navigation_rounded, color: Colors.white70),
+                      label: const Text(
+                        'View Safe Route',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF55333E), width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
                       ),
                     ),
                   ),
@@ -247,6 +284,7 @@ class _SosScreenState extends State<SosScreen> with SingleTickerProviderStateMix
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 10),
                 ],
               ),
